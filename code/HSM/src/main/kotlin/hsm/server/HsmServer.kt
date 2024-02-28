@@ -395,7 +395,7 @@ private fun SignatureRequest.toDto(messageContext: MessageContext): SignatureReq
 
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
-        println("Usage: hsm.server.HsmServer <server id>")
+        println("Usage: hsm.server.HsmServerKt <server id>")
         exitProcess(-1)
     }
     HsmServer(args[0].toInt())

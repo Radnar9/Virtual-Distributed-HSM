@@ -18,10 +18,10 @@ distributions {
                 from("config")
             }
             into("lib") {
-                from("jar")
+                from(tasks.named<Jar>("jar").get())
                 from(configurations.runtimeClasspath)
             }
-            from("runscripts")
+            from("scripts")
         }
     }
 }
@@ -30,12 +30,12 @@ distributions {
 tasks.register("remoteDeploy") {
     dependsOn("installDist")
     val myServer = org.hidetake.groovy.ssh.core.Remote(mapOf<String, String>(
-        "host" to "192.168.10.100",
-        "user" to "root",
-        "password" to "root",
+        "host" to "192.168.10.100", // <host ip>
+        "user" to "root",           // <host user>
+        "password" to "root",       // <host password>
         "fileTransfer" to "scp",
         //identity = file(System.getProperty("user.home") + System.getProperty("file.separator")
-        //        + ".ssh" + System.getProperty("file.separator") + "id_rsa")
+        //        + ".ssh" + System.getProperty("file.separator") + "id_rsa") // identity=file("<ssh private key file>")
     ))
 
     doLast {
@@ -53,8 +53,8 @@ tasks.register("localDeploy") {
     doLast {
         val replicas = intArrayOf(0, 1, 2, 3)
         val clients = intArrayOf(0)
-        val dst = "${System.getProperty("user.home")}${File.separator}Desktop${File.separator}${project.name}${File.separator}"
 
+        val dst = "${System.getProperty("user.home")}${File.separator}Desktop${File.separator}${project.name}${File.separator}"
         println("Deploying project into $dst")
 
         replicas.forEach { replicaId ->
@@ -71,6 +71,21 @@ tasks.register("localDeploy") {
                 from("build/install/${project.name}")
                 into(target)
             }
+        }
+    }
+}
+
+tasks.register("simpleLocalDeploy") {
+    dependsOn("installDist")
+
+    doLast {
+        val buildDir = project.layout.buildDirectory.asFile.get()
+        val src = "${buildDir}${File.separator}install${File.separator}${project.name}"
+        val workingDirectory = "${buildDir}${File.separator}local${File.separator}"
+
+        copy {
+            from(src)
+            into(workingDirectory)
         }
     }
 }
