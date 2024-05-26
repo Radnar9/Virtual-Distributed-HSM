@@ -1,17 +1,16 @@
 package hsm.client
 
 import bftsmart.tom.core.messages.TOMMessage
-import bftsmart.tom.util.ExtractedResponse
 import confidential.ConfidentialMessage
+import confidential.ExtractedResponse
 import confidential.client.ClientConfidentialityScheme
 import confidential.client.ServersResponseHandler
+import vss.secretsharing.Share
 import vss.secretsharing.VerifiableShare
+import java.math.BigInteger
 import java.util.*
 
-class ServersResponseHandlerWithoutCombine : ServersResponseHandler() {
-    private val responses: MutableMap<ByteArray, ConfidentialMessage> = HashMap()
-    private val responseHashes: MutableMap<ConfidentialMessage, Int> = HashMap()
-
+class ServersResponseHandlerWithoutCombine(private val clientId: Int) : ServersResponseHandler() {
     override fun setClientConfidentialityScheme(confidentialityScheme: ClientConfidentialityScheme) {
         super.setClientConfidentialityScheme(confidentialityScheme)
     }
@@ -61,25 +60,10 @@ class ServersResponseHandlerWithoutCombine : ServersResponseHandler() {
         return null
     }
 
-    override fun compare(o1: ByteArray, o2: ByteArray): Int {
-        println(o1.size)
-        println(o2.size)
-        val response1 = responses.computeIfAbsent(o1) { serializedData: ByteArray? ->
-            println("-> ${serializedData?.size}: ServersResponseHandlerWithoutCombine")
-            ConfidentialMessage.deserialize(serializedData)
+    override fun reconstructShare(shareholder: BigInteger, serializedShare: ByteArray): Share {
+        if (confidentialityScheme.useTLSEncryption()) {
+            return Share(shareholder, BigInteger(serializedShare))
         }
-//        val response1 = responses.computeIfAbsent(o1, ConfidentialMessage::deserialize)
-        val response2 = responses.computeIfAbsent(o2, ConfidentialMessage::deserialize)
-        if (response1 == null && response2 == null) return 0
-        if (response1 == null) return 1
-        if (response2 == null) return -1
-        val hash1 = responseHashes.computeIfAbsent(response1, ConfidentialMessage::hashCode)
-        val hash2 = responseHashes.computeIfAbsent(response2, ConfidentialMessage::hashCode)
-        return hash1 - hash2
-    }
-
-    override fun reset() {
-        responses.clear()
-        responseHashes.clear()
+        return Share(shareholder, confidentialityScheme.decryptShareFor(clientId, serializedShare))
     }
 }

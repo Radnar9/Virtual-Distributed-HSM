@@ -16,3 +16,17 @@ fun readByteArray(`in`: ObjectInput): ByteArray {
     `in`.readFully(result)
     return result
 }
+
+fun ByteArray.joinByteArray(bytesToJoin: ByteArray): ByteArray {
+    val finalByteArray = ByteArray(this.size + bytesToJoin.size)
+    System.arraycopy(this, 0, finalByteArray, 0, this.size)
+    System.arraycopy(bytesToJoin, 0, finalByteArray, this.size, bytesToJoin.size)
+    return finalByteArray
+}
+
+fun Byte.joinByteArray(bytesToJoin: ByteArray): ByteArray {
+    val finalByteArray = ByteArray(1 + bytesToJoin.size)
+    finalByteArray[0] = this
+    System.arraycopy(bytesToJoin, 0, finalByteArray, 1, bytesToJoin.size)
+    return finalByteArray
+}

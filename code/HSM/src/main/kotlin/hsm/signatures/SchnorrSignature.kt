@@ -32,45 +32,45 @@ class SchnorrSignature(
         signingPublicKey = readByteArray(`in`)
         randomPublicKey = readByteArray(`in`)
     }
-}
-
-fun buildFinalSignature(
-    signatureResponse: UncombinedConfidentialResponse,
-    schnorrSignatureScheme: SchnorrSignatureScheme,
-    signingPublicKeyBytes: ByteArray,
-    dataToSign: ByteArray,
-    serviceProxy: ConfidentialServiceProxy,
-): SchnorrSignature {
-    lateinit var partialSignature: PublicPartialSignature
-    try {
-        ByteArrayInputStream(signatureResponse.plainData).use { bis ->
-            ObjectInputStream(bis).use { `in` ->
-                partialSignature = PublicPartialSignature.deserialize(schnorrSignatureScheme, `in`)
+    companion object {
+        fun buildFinalSignature(
+            signatureResponse: UncombinedConfidentialResponse,
+            schnorrSignatureScheme: SchnorrSignatureScheme,
+            dataToSign: ByteArray,
+            serviceProxy: ConfidentialServiceProxy,
+        ): SchnorrSignature {
+            lateinit var partialSignature: SchnorrPublicPartialSignature
+            try {
+                ByteArrayInputStream(signatureResponse.getPlainData()).use { bis ->
+                    ObjectInputStream(bis).use { `in` ->
+                        partialSignature = SchnorrPublicPartialSignature.deserialize(schnorrSignatureScheme, `in`)
+                    }
+                }
+            } catch (e: Exception) { // IOException & ClassNotFoundException
+                e.printStackTrace()
+                serviceProxy.close()
+                exitProcess(-1)
             }
+            val signingPublicKey = schnorrSignatureScheme.decodePublicKey(partialSignature.getSigningPublicKey())
+
+            val f = 1 // TODO: Maybe put this constant somewhere else, or get it from the system.config somehow
+            val signingKeyCommitment: EllipticCurveCommitment = partialSignature.getSigningKeyCommitment()
+            val randomKeyCommitment: EllipticCurveCommitment = partialSignature.getRandomKeyCommitment()
+            val randomPublicKey: ECPoint = partialSignature.getRandomPublicKey()
+            val verifiableShares = signatureResponse.getVerifiableShares()[0]
+            val partialSignatures = verifiableShares.map { it.share }.toTypedArray()
+
+            val signature: SchnorrSignature = schnorrSignatureScheme.combinePartialSignatures(
+                f,
+                dataToSign,
+                signingKeyCommitment,
+                randomKeyCommitment,
+                signingPublicKey,
+                randomPublicKey,
+                *partialSignatures
+            )
+
+            return signature
         }
-    } catch (e: Exception) { // IOException & ClassNotFoundException
-        e.printStackTrace()
-        serviceProxy.close()
-        exitProcess(-1)
     }
-    val signingPublicKey = schnorrSignatureScheme.decodePublicKey(signingPublicKeyBytes)
-
-    val f = 1
-    val signingKeyCommitment: EllipticCurveCommitment = partialSignature.getSigningKeyCommitment()
-    val randomKeyCommitment: EllipticCurveCommitment = partialSignature.getRandomKeyCommitment()
-    val randomPublicKey: ECPoint = partialSignature.getRandomPublicKey()
-    val verifiableShares = signatureResponse.getVerifiableShares()[0]
-    val partialSignatures = verifiableShares.map { it.share }.toTypedArray()
-
-    val signature: SchnorrSignature = schnorrSignatureScheme.combinePartialSignatures(
-        f,
-        dataToSign,
-        signingKeyCommitment,
-        randomKeyCommitment,
-        signingPublicKey,
-        randomPublicKey,
-        *partialSignatures
-    )
-
-    return signature
 }

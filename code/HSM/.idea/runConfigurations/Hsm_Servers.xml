@@ -1,9 +1,0 @@
-<component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Hsm-Servers" type="CompoundRunConfigurationType">
-    <toRun name="HsmServerKt0" type="JetRunConfigurationType" />
-    <toRun name="HsmServerKt1" type="JetRunConfigurationType" />
-    <toRun name="HsmServerKt2" type="JetRunConfigurationType" />
-    <toRun name="HsmServerKt3" type="JetRunConfigurationType" />
-    <method v="2" />
-  </configuration>
-</component>

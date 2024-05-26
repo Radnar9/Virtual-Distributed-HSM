@@ -2,13 +2,15 @@ package hsm.communications
 
 import hsm.Operation
 import hsm.signatures.SignatureScheme
-import java.io.*
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.ObjectInputStream
+import java.io.ObjectOutputStream
 
-private val OPERATION = Operation.SIGN_DATA
+private val OPERATION = Operation.GENERATE_SIGNING_KEY
 
-class SignatureRequest(
+class KeyGenerationRequest(
     val privateKeyId: String,
-    val dataToSign: ByteArray,
     val signatureScheme: SignatureScheme,
 ) {
     fun serialize(withOperation: Boolean = true): ByteArray {
@@ -16,7 +18,6 @@ class SignatureRequest(
         ByteArrayOutputStream().use { bos ->
             ObjectOutputStream(bos).use { out ->
                 writeByteArray(out, privateKeyId.toByteArray())
-                writeByteArray(out, dataToSign)
                 writeByteArray(out, byteArrayOf(signatureScheme.ordinal.toByte()))
                 out.flush()
                 bos.flush()
@@ -29,13 +30,12 @@ class SignatureRequest(
     }
 
     companion object {
-        fun deserialize(data: ByteArray): SignatureRequest {
+        fun deserialize(data: ByteArray): KeyGenerationRequest {
             ByteArrayInputStream(data).use { bis ->
                 ObjectInputStream(bis).use { `in` ->
                     val keyId = readByteArray(`in`).decodeToString()
-                    val dataToSign = readByteArray(`in`)
                     val signatureScheme = SignatureScheme.getScheme(readByteArray(`in`)[0].toInt())
-                    return SignatureRequest(keyId, dataToSign, signatureScheme)
+                    return KeyGenerationRequest(keyId, signatureScheme)
                 }
             }
         }

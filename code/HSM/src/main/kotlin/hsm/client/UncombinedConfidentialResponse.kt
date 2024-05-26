@@ -1,6 +1,6 @@
 package hsm.client
 
-import confidential.ConfidentialExtractedResponse
+import confidential.ExtractedResponse
 import vss.secretsharing.VerifiableShare
 
 class UncombinedConfidentialResponse(
@@ -8,10 +8,18 @@ class UncombinedConfidentialResponse(
     plainData: ByteArray,
     private val verifiableShares: List<List<VerifiableShare>> = emptyList(),
     private val sharedData: List<ByteArray> = emptyList()
-) : ConfidentialExtractedResponse(viewID, plainData, null, null) {
+) : ExtractedResponse(plainData, null) {
+
+    init {
+        setViewID(viewID)
+    }
 
     fun getVerifiableShares(): List<List<VerifiableShare>> {
         return verifiableShares
+    }
+
+    fun getPlainData(): ByteArray {
+        return this.content
     }
 
     fun getSharedData(): List<ByteArray> {

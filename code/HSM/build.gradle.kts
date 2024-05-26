@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "hsm"
-version = "0.1"
+version = "0.2"
 
 repositories {
     mavenCentral()
@@ -16,6 +16,9 @@ distributions {
         contents {
             into("config") {
                 from("config")
+            }
+            into("pairing") {
+                from("pairing")
             }
             into("lib") {
                 from(tasks.named<Jar>("jar").get())
@@ -93,10 +96,10 @@ tasks.register("simpleLocalDeploy") {
 dependencies {
     implementation(fileTree("libs") { include("*.jar") })
 
-    // https://mvnrepository.com/artifact/org.bouncycastle/bcpkix-jdk15on
+    // https://mvnrepository.com/artifact/org.bouncycastle/bcpkix-jdk18on
     implementation("org.bouncycastle:bcpkix-jdk18on:1.77")
 
-    // https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk15on
+    // https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk18on
     implementation("org.bouncycastle:bcprov-jdk18on:1.77")
 
     // https://mvnrepository.com/artifact/commons-codec/commons-codec

@@ -1,3 +1,7 @@
+### C Files ###
+pairing/relic/*
+!pairing/relic/zip
+
 ### Gradle ###
 build/
 .gradle

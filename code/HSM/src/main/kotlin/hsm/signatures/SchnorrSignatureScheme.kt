@@ -20,16 +20,12 @@ class SchnorrSignatureScheme {
     private val curve: ECCurve
 
     init {
-        // secp256r1 curve domain parameters
-        val prime = BigInteger("FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF", 16)
-        order = BigInteger("FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551", 16)
-        val a = BigInteger("FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC", 16)
-        val b = BigInteger("5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B", 16)
-        val compressedGenerator = BigInteger("036B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296", 16).toByteArray()
+        val ecParams = ECParameters.secp256k1
 
-        val cofactor = prime.divide(order)
-        curve = ECCurve.Fp(prime, a, b, order, cofactor)
-        generator = curve.decodePoint(compressedGenerator)
+        val cofactor = ecParams.cofactor()
+        order = ecParams.order()
+        curve = ECCurve.Fp(ecParams.prime(), ecParams.a(), ecParams.b(), order, cofactor)
+        generator = curve.createPoint(ecParams.x(), ecParams.y())
         corruptedShareholders = HashSet()
         interpolationStrategy = LagrangeInterpolation(order)
     }

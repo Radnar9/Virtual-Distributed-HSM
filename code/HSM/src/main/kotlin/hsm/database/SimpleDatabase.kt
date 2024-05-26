@@ -3,11 +3,7 @@ package hsm.database
 import java.util.TreeMap
 
 class SimpleDatabase<K, V>: HsmDatabase<K, V> {
-    private val map: MutableMap<K, V>
-
-    init {
-        map = TreeMap()
-    }
+    private val map: MutableMap<K, V> = TreeMap()
 
     override fun add(key: K, value: V): V? {
         if (map.containsKey(key)) return null
