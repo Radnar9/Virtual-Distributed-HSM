@@ -2,6 +2,7 @@ package hsm.communications
 
 import java.io.ObjectInput
 import java.io.ObjectOutput
+import java.math.BigInteger
 
 fun writeByteArray(out: ObjectOutput, bytes: ByteArray?) {
     out.writeInt(bytes?.size ?: -1)
@@ -15,6 +16,19 @@ fun readByteArray(`in`: ObjectInput): ByteArray {
     val result = ByteArray(len)
     `in`.readFully(result)
     return result
+}
+
+fun serializeBigInteger(value: BigInteger, out: ObjectOutput) {
+    val b = value.toByteArray()
+    out.writeInt(b.size)
+    out.write(b)
+}
+
+fun deserializeBigInteger(`in`: ObjectInput): BigInteger {
+    val len = `in`.readInt()
+    val b = ByteArray(len)
+    `in`.readFully(b)
+    return BigInteger(b)
 }
 
 fun ByteArray.joinByteArray(bytesToJoin: ByteArray): ByteArray {

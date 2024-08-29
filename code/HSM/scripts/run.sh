@@ -3,7 +3,7 @@ C_PROJECT=$(pwd)/pairing
 RELIC=$(pwd)/pairing/relic/relic-target
 
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-export PATH=$PATH:$JAVA_HOME
+export PATH=$JAVA_HOME/bin:$PATH
 
 export LD_LIBRARY_PATH=$RELIC/lib:$LD_LIBRARY_PATH
 

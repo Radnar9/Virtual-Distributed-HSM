@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <jni.h>
 #include "relic.h"
-#include "bls_BLS.h"
+//#include "bls_BLS.h"
+#include "hsm_signatures_bls_BlsSignatureScheme.h"
 
 int t;
 
@@ -395,7 +396,7 @@ g2_t *interpolatePartialPublicKeys(bn_t x, bn_t *xs[], g2_t *ys[], int n_points)
 	return result;
 }
 
-JNIEXPORT void JNICALL Java_bls_BLS_initialize(JNIEnv *env, jobject obj, jint threshold) {
+JNIEXPORT void JNICALL Java_hsm_signatures_bls_BlsSignatureScheme_initialize(JNIEnv *env, jobject obj, jint threshold) {
 	t = threshold;
 
     core_init();
@@ -404,7 +405,7 @@ JNIEXPORT void JNICALL Java_bls_BLS_initialize(JNIEnv *env, jobject obj, jint th
 	ep_param_print();
 
 	int embed = ep_param_embed();
-	printf("\n-- Embed: %d\n", embed);
+//	printf("\n-- Embed: %d\n", embed);
 
 	bn_null(order);
 	bn_new(order);
@@ -420,7 +421,7 @@ JNIEXPORT void JNICALL Java_bls_BLS_initialize(JNIEnv *env, jobject obj, jint th
 	bn_sub(fermat_exp, order, TWO);
 }
 
-JNIEXPORT jobjectArray JNICALL Java_bls_BLS_computeKeyPair(JNIEnv *env, jobject obj) {
+JNIEXPORT jobjectArray JNICALL Java_hsm_signatures_bls_BlsSignatureScheme_computeKeyPair(JNIEnv *env, jobject obj) {
     bn_t* private_key = malloc(sizeof(bn_t));
     g2_t* public_key = malloc(sizeof(g2_t));
     bn_null(*private_key);
@@ -442,7 +443,7 @@ JNIEXPORT jobjectArray JNICALL Java_bls_BLS_computeKeyPair(JNIEnv *env, jobject 
     return result;
 }
 
-JNIEXPORT jbyteArray JNICALL Java_bls_BLS_computePublicKey(JNIEnv *env, jobject obj, jbyteArray private_key_bytes) {
+JNIEXPORT jbyteArray JNICALL Java_hsm_signatures_bls_BlsSignatureScheme_computePublicKey(JNIEnv *env, jobject obj, jbyteArray private_key_bytes) {
 	bn_t *private_key = convert_bytes_to_bn(env, private_key_bytes);
 	g2_t* public_key = malloc(sizeof(g2_t));
 	g2_null(*public_key);
@@ -456,7 +457,7 @@ JNIEXPORT jbyteArray JNICALL Java_bls_BLS_computePublicKey(JNIEnv *env, jobject 
 	return public_key_bytes;
 }
 
-JNIEXPORT jbyteArray JNICALL Java_bls_BLS_getOrderBytes(JNIEnv *env, jobject obj) {
+JNIEXPORT jbyteArray JNICALL Java_hsm_signatures_bls_BlsSignatureScheme_getOrderBytes(JNIEnv *env, jobject obj) {
     int nBytes = bn_size_bin(order);
     uint8_t* bytes = malloc(sizeof(uint8_t) * nBytes);
     bn_write_bin(bytes, nBytes, order);
@@ -467,7 +468,7 @@ JNIEXPORT jbyteArray JNICALL Java_bls_BLS_getOrderBytes(JNIEnv *env, jobject obj
     return result;
 }
 
-JNIEXPORT jbyteArray JNICALL Java_bls_BLS_computeSignature(JNIEnv *env, jobject obj, jbyteArray private_key_bytes,
+JNIEXPORT jbyteArray JNICALL Java_hsm_signatures_bls_BlsSignatureScheme_computeSignature(JNIEnv *env, jobject obj, jbyteArray private_key_bytes,
 	jbyteArray message) {
     bn_t *private_key = convert_bytes_to_bn(env, private_key_bytes);
 
@@ -489,7 +490,7 @@ JNIEXPORT jbyteArray JNICALL Java_bls_BLS_computeSignature(JNIEnv *env, jobject 
     return result;
 }
 
-JNIEXPORT jboolean JNICALL Java_bls_BLS_computeVerification(JNIEnv *env, jobject obj,
+JNIEXPORT jboolean JNICALL Java_hsm_signatures_bls_BlsSignatureScheme_computeVerification(JNIEnv *env, jobject obj,
 	jbyteArray signature, jbyteArray message, jbyteArray public_key) {
 
 	g1_t *signature_point = convert_bytes_to_g1(env, signature);
@@ -508,7 +509,7 @@ JNIEXPORT jboolean JNICALL Java_bls_BLS_computeVerification(JNIEnv *env, jobject
 	return is_valid;
 }
 
-JNIEXPORT jbyteArray JNICALL Java_bls_BLS_interpolatePartialSignatures(JNIEnv *env, jobject obj,
+JNIEXPORT jbyteArray JNICALL Java_hsm_signatures_bls_BlsSignatureScheme_interpolatePartialSignatures(JNIEnv *env, jobject obj,
 	jobjectArray partial_signatures_bytes) {
 	int n_partial_signatures = (*env)->GetArrayLength(env, partial_signatures_bytes);
 
@@ -544,7 +545,7 @@ JNIEXPORT jbyteArray JNICALL Java_bls_BLS_interpolatePartialSignatures(JNIEnv *e
 	return result;
 }
 
-JNIEXPORT jbyteArray JNICALL Java_bls_BLS_interpolatePartialPublicKeys(JNIEnv *env, jobject obj,
+JNIEXPORT jbyteArray JNICALL Java_hsm_signatures_bls_BlsSignatureScheme_interpolatePartialPublicKeys(JNIEnv *env, jobject obj,
 	jobjectArray partial_keys_bytes) {
 	int n_partial_keys = (*env)->GetArrayLength(env, partial_keys_bytes);
 	bn_t *xs[n_partial_keys];

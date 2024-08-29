@@ -1,5 +1,6 @@
 ### C Files ###
 pairing/relic/*
+pairing/lib/*
 !pairing/relic/zip
 
 ### Gradle ###
@@ -26,6 +27,7 @@ build/
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
+.kotlin/*
 
 ### Eclipse ###
 .apt_generated

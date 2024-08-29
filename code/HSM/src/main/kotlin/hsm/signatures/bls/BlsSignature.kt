@@ -1,15 +1,20 @@
 package hsm.signatures.bls
 
-import bls.BLS
 import hsm.client.UncombinedConfidentialResponse
 import hsm.communications.readByteArray
 import hsm.communications.writeByteArray
+import hsm.signatures.SignatureScheme
 import java.io.*
+import java.math.BigInteger
+import java.util.*
 
 class BlsSignature(
     private var signature: ByteArray,
     private var signingPublicKey: ByteArray,
 ) : Externalizable {
+
+    // Identifier used to identify the corresponding signature scheme when deserializing a signature
+    private val id = SignatureScheme.BLS.ordinal
 
     fun getSignature() = signature
     fun getSigningPublicKey() = signingPublicKey
@@ -28,6 +33,7 @@ class BlsSignature(
         val serializedData: ByteArray
         ByteArrayOutputStream().use { bos ->
             ObjectOutputStream(bos).use { out ->
+                out.writeInt(id)
                 writeByteArray(out, signature)
                 writeByteArray(out, signingPublicKey)
                 out.flush()
@@ -38,10 +44,19 @@ class BlsSignature(
         return serializedData
     }
 
+    override fun toString(): String {
+        return """
+            BlsSignature {
+                signature: ${BigInteger(signature).toString(16).uppercase(Locale.getDefault())},
+                pk: ${BigInteger(signingPublicKey).toString(16).uppercase(Locale.getDefault())}
+            }
+        """.trimIndent()
+    }
+
     companion object {
         fun buildFinalSignature(
             signatureResponse: UncombinedConfidentialResponse,
-            blsSignatureScheme: BLS,
+            blsSignatureScheme: BlsSignatureScheme,
             dataToSign: ByteArray,
         ): BlsSignature {
             val verifiableShares = signatureResponse.getVerifiableShares()[0]
@@ -58,10 +73,11 @@ class BlsSignature(
 
             val signature = blsSignatureScheme.combinePartialSignatures(partialSignatures, partialPubKeys, dataToSign)
             val publicKey = blsSignatureScheme.combinePartialPublicKeys(partialPubKeys)
-            return BlsSignature(signature, publicKey)
+            val blsSignature = BlsSignature(signature, publicKey)
+            return blsSignature
         }
 
-        fun buildFinalPublicKey(signatureResponse: UncombinedConfidentialResponse, blsSignatureScheme: BLS): ByteArray {
+        fun buildFinalPublicKey(signatureResponse: UncombinedConfidentialResponse, blsSignatureScheme: BlsSignatureScheme): ByteArray {
             val verifiableShares = signatureResponse.getVerifiableShares()[0]
             val partialSignaturesWithPubKeys = verifiableShares.associate {
                 it.share.shareholder to it.share.share.toByteArray()
@@ -71,9 +87,10 @@ class BlsSignature(
             return publicKey
         }
 
-        private fun deserialize(data: ByteArray): BlsSignature {
+        fun deserialize(data: ByteArray): BlsSignature {
             ByteArrayInputStream(data).use { bis ->
                 ObjectInputStream(bis).use { `in` ->
+                    val signatureScheme = SignatureScheme.getScheme(`in`.readInt())
                     val signature = readByteArray(`in`)
                     val signingPublicKey = readByteArray(`in`)
                     return BlsSignature(signature, signingPublicKey)

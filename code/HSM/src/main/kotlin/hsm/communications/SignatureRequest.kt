@@ -1,6 +1,5 @@
 package hsm.communications
 
-import hsm.Operation
 import hsm.signatures.SignatureScheme
 import java.io.*
 

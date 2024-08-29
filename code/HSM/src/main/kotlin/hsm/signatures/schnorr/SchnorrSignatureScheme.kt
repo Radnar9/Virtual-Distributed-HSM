@@ -1,5 +1,6 @@
-package hsm.signatures
+package hsm.signatures.schnorr
 
+import hsm.signatures.ECParameters
 import org.bouncycastle.math.ec.ECCurve
 import org.bouncycastle.math.ec.ECPoint
 import vss.commitment.ellipticCurve.EllipticCurveCommitment

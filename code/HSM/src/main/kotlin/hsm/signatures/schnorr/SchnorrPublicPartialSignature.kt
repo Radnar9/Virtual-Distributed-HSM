@@ -1,4 +1,4 @@
-package hsm.signatures
+package hsm.signatures.schnorr
 
 import hsm.communications.readByteArray
 import hsm.communications.writeByteArray

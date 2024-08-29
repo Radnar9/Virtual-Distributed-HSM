@@ -1,95 +1,60 @@
 package hsm.client
 
-import bls.BLS
-import confidential.client.ConfidentialServiceProxy
-import hsm.communications.KeyGenerationRequest
-import hsm.communications.SignatureRequest
 import hsm.signatures.*
-import hsm.signatures.bls.BlsSignature
 import java.math.BigInteger
 import kotlin.system.exitProcess
 
-private fun generateSigningKey(
-    keyIdentifier: String,
-    signatureScheme: SignatureScheme,
-    serviceProxy: ConfidentialServiceProxy
-): UncombinedConfidentialResponse {
-    val keyGenRequest = KeyGenerationRequest(keyIdentifier, signatureScheme)
-    return serviceProxy.invokeOrderedOperation(keyGenRequest.serialize()) as UncombinedConfidentialResponse
-}
-
-private fun signData(
-    privateKeyId: String,
-    dataToSign: ByteArray,
-    signatureScheme: SignatureScheme,
-    serviceProxy: ConfidentialServiceProxy
-): UncombinedConfidentialResponse {
-    val signingReq = SignatureRequest(privateKeyId, dataToSign, signatureScheme)
-    return serviceProxy.invokeOrderedOperation(signingReq.serialize()) as UncombinedConfidentialResponse
-}
-
-// TODO: Develop the specific types according to PKCS#11 and serialize/deserialize the messages to communicate
 fun main(args: Array<String>) {
-    if (args.isEmpty()) {
-        println("Usage: hsm.client.HsmClientKt <client id>")
+    if (args.isEmpty() || args.size < 2) {
+        println("""
+            Usage: hsm.client.HsmClientKt    keyGen           <client id> <index key id> <schnorr or bls>
+                                             sign             <client id> <index key id> <schnorr or bls> <data>
+                                             enc              <client id> <data>
+                                             dec              <client id> <ciphertext>
+                                             valSign          <client id> <signature> <initial data>
+                                             availableKeys    <client id>
+                                             help
+        """.trimIndent())
         exitProcess(-1)
     }
-    val clientId = args[0].toInt()
+    val operation = args[0]
+    val clientId = args[1].toInt()
 
-    val serversResponseHandler = ServersResponseHandlerWithoutCombine(clientId)
-    val serviceProxy = ConfidentialServiceProxy(clientId, serversResponseHandler)
+    val clientAPI = ClientAPI(clientId)
+    when (operation) {
+        "keyGen" -> {
+            val indexId = args[2]
+            val signatureScheme = stringToSignatureScheme(args[3])
+            val publicKey = clientAPI.generateKey(indexId, signatureScheme)
+            println("$signatureScheme signing public key: ${BigInteger(publicKey).toString(16)}\n")
+        }
+        "sign" -> {
+            val indexId = args[2]
+            val signatureScheme = stringToSignatureScheme(args[3])
+            val data = args[4].toByteArray()
+            val signature = clientAPI.signData(indexId, signatureScheme, data)
+            println("$signatureScheme signature: ${BigInteger(signature).toString(16)}\n")
+        }
+        "enc" -> {
+            val data = args[2].toByteArray()
+            val ciphertext = clientAPI.encryptData(data)
+            println("Encrypted message: ${BigInteger(ciphertext).toString(16)}\n")
+        }
+        "dec" -> {
+            val ciphertext = BigInteger(args[2], 16).toByteArray()
+            val plainData = clientAPI.decryptData(ciphertext)
+            println("Decrypted message: ${plainData?.decodeToString()}\n")
+        }
+        "valSign" -> {
+            val signature = BigInteger(args[2], 16)
+            val initialData = args[3].toByteArray()
+            val validity = clientAPI.validateSignature(signature.toByteArray(), initialData)
+            println("The signature is ${if (validity) "valid" else "invalid"}.\n")
+        }
+        "availableKeys" -> clientAPI.availableKeys()
+        "help" -> clientAPI.commands()
+        else -> println("Operation not found: $operation")
+    }
 
-    val blsSignatureScheme = BLS(1)
-
-    // Generates a Schnorr signing key (private key & public key)
-    val schnorrPrivateKeyId = "schnorr"
-    val schnorrSigningKeyResponse = generateSigningKey(schnorrPrivateKeyId, SignatureScheme.SCHNORR, serviceProxy)
-    val schnorrPublicKey = schnorrSigningKeyResponse.getPlainData()
-    println("Schnorr signing public key: ${BigInteger(schnorrPublicKey).toString(16)}\n")
-
-    // Generates a BLS signing key (private key & public key)
-    val blsPrivateKeyId = "bls"
-    val blsSigningKeyResponse = generateSigningKey(blsPrivateKeyId, SignatureScheme.BLS, serviceProxy)
-    val blsPublicKey = BlsSignature.buildFinalPublicKey(blsSigningKeyResponse, blsSignatureScheme)
-    println("BLS signing public key: ${BigInteger(blsPublicKey).toString(16)}\n")
-
-
-    // Sign a message (Schnorr signature)
-    val schnorrSignatureScheme = SchnorrSignatureScheme()
-
-    val dataToSign = "HSM".toByteArray()
-    val signatureResponse = signData(schnorrPrivateKeyId, dataToSign, SignatureScheme.SCHNORR, serviceProxy)
-
-    val finalSignature = SchnorrSignature.buildFinalSignature(
-        signatureResponse,
-        schnorrSignatureScheme,
-        dataToSign,
-        serviceProxy
-    )
-
-    val isValid = schnorrSignatureScheme.verifySignature(
-        dataToSign,
-        schnorrSignatureScheme.decodePublicKey(finalSignature.getSigningPublicKey()),
-        schnorrSignatureScheme.decodePublicKey(finalSignature.getRandomPublicKey()),
-        BigInteger(finalSignature.getSigma())
-    )
-    println("Combined Schnorr Signature: ${BigInteger(finalSignature.getSigma()).toString(16)}")
-    println("The Schnorr signature is ${if (isValid) "valid" else "invalid"}.\n")
-
-    // Sign a message (BLS signature)
-    val message = "BLSSignatureTest".toByteArray()
-    val blsSignatureResponse = signData(blsPrivateKeyId, message, SignatureScheme.BLS, serviceProxy)
-
-    val blsSignature = BlsSignature.buildFinalSignature(
-        blsSignatureResponse,
-        blsSignatureScheme,
-        message,
-    )
-    println("Combined BLS Signature: ${BigInteger(blsSignature.getSignature()).toString(16)}")
-    println("Combined BLS Public Key: ${BigInteger(blsSignature.getSigningPublicKey()).toString(16)}")
-
-    val isValidBlsSignature = blsSignatureScheme.verify(blsSignature.getSignature(), message, blsSignature.getSigningPublicKey())
-    println("The BLS signature is ${if (isValidBlsSignature) "valid" else "invalid"}.")
-
-    serviceProxy.close()
+    clientAPI.close()
 }

@@ -3,7 +3,7 @@ package hsm.server
 import bftsmart.communication.ServerCommunicationSystem
 import bftsmart.tom.MessageContext
 import bftsmart.tom.ServiceReplica
-import bls.BLS
+import hsm.signatures.bls.BlsSignatureScheme
 import confidential.ConfidentialMessage
 import confidential.EllipticCurveConstants
 import confidential.facade.server.ConfidentialSingleExecutable
@@ -14,15 +14,17 @@ import confidential.polynomial.RandomPolynomialListener
 import confidential.server.ConfidentialRecoverable
 import confidential.server.ServerConfidentialityScheme
 import confidential.statemanagement.ConfidentialSnapshot
-import hsm.Operation
-import hsm.Operation.GENERATE_SIGNING_KEY
-import hsm.Operation.SIGN_DATA
-import hsm.communications.KeyGenerationRequest
-import hsm.communications.SignatureRequest
-import hsm.database.HsmDatabase
-import hsm.database.SimpleDatabase
-import hsm.signatures.SchnorrPublicPartialSignature
-import hsm.signatures.SchnorrSignatureScheme
+import hsm.communications.*
+import hsm.communications.Operation.*
+import hsm.dprf.DPRFParameters
+import hsm.dprf.DPRFResult
+import hsm.encryption.CiphertextMetadata
+import hsm.encryption.CommittedData
+import hsm.encryption.DiSE
+import hsm.exceptions.KeyPairNotFoundException
+import hsm.exceptions.OperationNotFoundException
+import hsm.signatures.schnorr.SchnorrPublicPartialSignature
+import hsm.signatures.schnorr.SchnorrSignatureScheme
 import hsm.signatures.SignatureScheme
 import hsm.signatures.bls.BlsSignature
 import org.bouncycastle.math.ec.ECPoint
@@ -37,11 +39,13 @@ import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.collections.HashMap
 import kotlin.concurrent.withLock
 import kotlin.system.exitProcess
 
 private typealias PolynomialId = Int
 private typealias ClientId = Int
+private typealias IndexId = String
 private data class RequestOperation(val clientId: Int, val operation: Operation)
 private data class KeyGenerationData(val keyGenerationRequest: KeyGenerationRequest, val messageContext: MessageContext)
 private data class SignatureRequestDto(val privateKeyId: String, val dataToSign: ByteArray, val signatureScheme: SignatureScheme, val messageContext: MessageContext)
@@ -68,19 +72,29 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
 
     // Stores the private key shares of each client
     data class SignatureKeyPair(val privateKeyShare: VerifiableShare, val publicKey: ByteArray, val signatureScheme: SignatureScheme)
-    private val database: HsmDatabase<String, SignatureKeyPair>      // <client id + key id, signature key pair>
+
+    private val indexKeys: HashMap<ClientId, HashSet<IndexId>>
+    private val db: HashMap<IndexId, SignatureKeyPair>                // <client id + key id, signature key pair>
 
     // Stores requests for generating a random key and associates the polynomial id with the corresponding operation
     private val randomKeyGenerationRequests: MutableMap<PolynomialId, RequestOperation>
 
     // Stores requests for generating a signing key
     private val signKeyGenerationRequests: MutableMap<ClientId, KeyGenerationData>
+    private val signKeyGenRequests: MutableMap<IndexId, KeyGenerationData>
+    private val signKeyGenPolyIds: MutableMap<PolynomialId, IndexId>
 
     // Stores requests for issuing a signature
     private val signatureRequests: MutableMap<ClientId, SignatureRequestDto>
 
     private val schnorrSignatureScheme: SchnorrSignatureScheme
-    private val blsSignatureScheme: BLS
+    private val blsSignatureScheme: BlsSignatureScheme
+
+    private val dise: DiSE
+    private var dprfShare: VerifiableShare? = null
+    private lateinit var dprfParameters: DPRFParameters
+    private var dprfPolyId: Int = -1
+    private var dprfInitInfo: Pair<BigInteger, MessageContext>? = null // Used only on the first utilization
 
     init {
         lock = ReentrantLock(true)
@@ -95,10 +109,13 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
         distributedPolynomialManager.setRandomPolynomialListener(this)
         distributedPolynomialManager.setRandomKeyPolynomialListener(this)
 
-        database = SimpleDatabase()
+        indexKeys = HashMap()
+        db = HashMap()
 
         randomKeyGenerationRequests = TreeMap()
         signKeyGenerationRequests = TreeMap()
+        signKeyGenRequests = TreeMap()
+        signKeyGenPolyIds = TreeMap()
         signatureRequests = TreeMap()
 
         val confidentialitySchemes = HashMap<String, ServerConfidentialityScheme>()
@@ -123,7 +140,9 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
         cr.registerConfidentialitySchemes(confidentialitySchemes)
 
         schnorrSignatureScheme = SchnorrSignatureScheme()
-        blsSignatureScheme = BLS(serviceReplica.replicaContext.currentView.f)
+        blsSignatureScheme = BlsSignatureScheme(serviceReplica.replicaContext.currentView.f)
+
+        dise = DiSE(cr.shareholderId, serviceReplica.replicaContext.currentView.f, EllipticCurveConstants.secp256r1.PARAMETERS)
     }
 
     override fun appExecuteOrdered(
@@ -141,10 +160,11 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
                     val keyGenRequest = KeyGenerationRequest.deserialize(receivedData)
                     val indexKey = buildDatabaseIndexKey(keyGenRequest.privateKeyId, messageSenderId)
 
-                    if (database.containsKey(indexKey)) {
+                    if (db.containsKey(indexKey)) {
                         logger.warn("Already exists a signing key associated with index key.")
-                        sendPublicKeyTo(messageContext, database.get(indexKey)!!)
-                    } else if (signKeyGenerationRequests.isEmpty()) {
+                        sendPublicKeyTo(messageContext, db.get(indexKey)!!)
+                    } else if (!signKeyGenRequests.containsKey(indexKey)) {
+                        signKeyGenRequests[indexKey] = KeyGenerationData(keyGenRequest, messageContext)
                         val polynomialId = generateSigningKey(
                             when (keyGenRequest.signatureScheme) {
                                 SignatureScheme.SCHNORR -> EllipticCurveConstants.secp256k1.NAME
@@ -153,8 +173,7 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
                         )
                         randomKeyGenerationRequests[polynomialId] = RequestOperation(messageSenderId, GENERATE_SIGNING_KEY)
 
-                        val messageData = KeyGenerationData(keyGenRequest, messageContext)
-                        signKeyGenerationRequests[messageSenderId] = messageData
+                        signKeyGenPolyIds[polynomialId] = indexKey
                         logger.info("Generating signing key with polynomial id {}", polynomialId)
                     } else {
                         logger.warn("Signing key is already being created.")
@@ -177,6 +196,25 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
                         }
                     }
                 }
+            }
+            ENCRYPT -> {
+                val encryptorId = messageSenderId
+                val committedData = CommittedData.deserialize(EncDecRequest.deserialize(receivedData))
+                val evalInput = BigInteger(1, "$encryptorId".toByteArray().plus(committedData.alpha))
+                if (dprfShare == null) {
+                    dprfPolyId = generateSigningKey(EllipticCurveConstants.secp256r1.NAME)
+                    dprfInitInfo = Pair(evalInput, messageContext)
+                    return null
+                }
+                performAndSendContribution(evalInput, messageContext)
+            }
+            DECRYPT -> {
+                val ciphertextMeta = CiphertextMetadata.deserialize(EncDecRequest.deserialize(receivedData))
+                val evalInput = BigInteger(1, "${ciphertextMeta.encryptorId}".toByteArray().plus(ciphertextMeta.alpha))
+                performAndSendContribution(evalInput, messageContext)
+            }
+            AVAILABLE_KEYS -> {
+                sendClientAvailableKeyIds(messageContext)
             }
             else -> return null
         }
@@ -214,9 +252,20 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
      * client.
      */
     private fun onRandomKey(polynomialId: Int, privateKeyShare: VerifiableShare, publicKey: ECPoint) {
-        if (!randomKeyGenerationRequests.containsKey(polynomialId)) {
+        if (polynomialId == dprfPolyId && dprfShare == null) {
+            logger.info("Received key share for the DPRF from the polynomial id {}", polynomialId)
+            dprfShare = privateKeyShare
+            dprfParameters = dise.init(
+                privateKeyShare.share,
+                BigInteger(getPublicKey(privateKeyShare).getEncoded(true))
+            )
+            performAndSendContribution(dprfInitInfo!!.first, dprfInitInfo!!.second)
+            return
+        }
+
+        val indexId = signKeyGenPolyIds.remove(polynomialId)
+        if (indexId == null && !randomKeyGenerationRequests.containsKey(polynomialId)) {
             logger.warn("Received an unknown polynomial id {}", polynomialId)
-            // TODO: Send some value correspondent to the error specified in PKCS#11
             return
         }
         logger.info("Received key share of the random signing key generated from the polynomial id {}", polynomialId)
@@ -224,7 +273,7 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
         val (clientId, operation) = randomKeyGenerationRequests.remove(polynomialId)!!
         when (operation) {
             GENERATE_SIGNING_KEY -> {
-                val (keyGenRequest, messageContext) = signKeyGenerationRequests.remove(clientId)!!
+                val (keyGenRequest, messageContext) = signKeyGenRequests.remove(indexId)!!
                 val databaseIndexKey = buildDatabaseIndexKey(keyGenRequest.privateKeyId, messageContext.sender)
 
                 val publicKeyEncoded = when (keyGenRequest.signatureScheme) {
@@ -233,22 +282,24 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
                 }
                 val signatureKeyPair = SignatureKeyPair(privateKeyShare, publicKeyEncoded, keyGenRequest.signatureScheme)
 
-                val result = database.add(databaseIndexKey, signatureKeyPair) ?: return // TODO: Send PKCS#11 error value.
+                val set = indexKeys[clientId]?.apply { add(databaseIndexKey) } ?: HashSet<IndexId>().apply { add(databaseIndexKey) }
+                indexKeys[clientId] = set
+
+                val result = db.put(databaseIndexKey, signatureKeyPair)
                 sendPublicKeyTo(messageContext, signatureKeyPair)
             }
             SIGN_DATA -> {
                 val (privateKeyId, dataToSign, signatureScheme, messageContext) = signatureRequests.remove(clientId)!!
-                if (signatureScheme != SignatureScheme.SCHNORR) return // TODO: Send appropriate error
-                val chosenSignatureKeypair = getSignatureKeyPair(privateKeyId, messageContext.sender) ?: return // TODO: Send PKCS#11 error value.
+                require(signatureScheme == SignatureScheme.SCHNORR) { "Only Schnorr needs to generate a new random value." }
+                val chosenSignatureKeypair = getSignatureKeyPair(privateKeyId, messageContext.sender) ?: throw KeyPairNotFoundException("Schnorr key pair not found.")
 
                 logger.info("Computing partial Schnorr signature for client {}", clientId)
                 val randomPrivateKeyShare = privateKeyShare
                 val randomPublicKey = publicKey
                 signSchnorrAndSend(messageContext, dataToSign, chosenSignatureKeypair, randomPrivateKeyShare, randomPublicKey)
             }
-            else -> return
+            else -> throw OperationNotFoundException("Random key generation does not match with any available operation.")
         }
-        // TODO: Send some value correspondent to the success or error specified in PKCS#11 for the response.
     }
 
     /**
@@ -257,7 +308,7 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
      */
     private fun signBlsAndSend(clientId: Int) {
         val (privateKeyId, dataToSign, _, receiverContext) = signatureRequests.remove(clientId)!!
-        val chosenSigningKeyPair = getSignatureKeyPair(privateKeyId, receiverContext.sender) ?: return // TODO: Send PKCS#11 error value.
+        val chosenSigningKeyPair = getSignatureKeyPair(privateKeyId, receiverContext.sender) ?: throw KeyPairNotFoundException("BLS key pair not found.")
         logger.info("Computing partial BLS signature for client {}", clientId)
 
         val privateKeyShare = chosenSigningKeyPair.privateKeyShare.share.share
@@ -275,6 +326,56 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
         val response = ConfidentialMessage(ByteArray(0), partialSignatureWithPubKey)
         sendResponseTo(receiverContext, response)
         logger.info("Sent partial BLS signature for client {}", receiverContext.sender)
+    }
+
+    /**
+     * Sends the contribution back to the client that is responsible for the encryption/decryption.
+     */
+    private fun performAndSendContribution(evalInput: BigInteger, receiverContext: MessageContext) {
+        val contribution = dise.performContribution(evalInput, dprfParameters)
+        val contributionBytes = VerifiableShare(
+            Share(cr.shareholderId, BigInteger(DPRFResult(contribution, dprfParameters.publicParameters).serialize())),
+            LinearCommitments(BigInteger.ZERO),
+            null
+        )
+
+        val response = ConfidentialMessage(ByteArray(0), contributionBytes)
+        sendResponseTo(receiverContext, response)
+        logger.info("Sent encryption/decryption contribution for client {}", receiverContext.sender)
+    }
+
+    private fun sendClientAvailableKeyIds(receiverContext: MessageContext) {
+        val clientId = receiverContext.sender
+        var serializedData = ByteArray(0)
+
+        val indexIds = indexKeys[clientId]
+        if (indexIds != null) {
+            ByteArrayOutputStream().use { bos ->
+                ObjectOutputStream(bos).use { out ->
+                    out.writeInt(indexIds.size)
+                    for (indexKey in indexIds) {
+                        val keyData = db[indexKey]!!
+                        val indexId = indexKey.drop(clientId.toString().length)
+                        out.writeUTF(indexId)
+                        writeByteArray(out, keyData.publicKey)
+                        out.writeInt(keyData.signatureScheme.ordinal)
+                    }
+                    out.flush()
+                    bos.flush()
+                    serializedData = bos.toByteArray()
+                }
+            }
+        }
+
+        val availableKeys = VerifiableShare(
+            Share(cr.shareholderId, BigInteger(serializedData)),
+            LinearCommitments(BigInteger.ZERO),
+            null
+        )
+
+        val response = ConfidentialMessage(ByteArray(0), availableKeys)
+        sendResponseTo(receiverContext, response)
+        logger.info("Sent available key ids for client {}", receiverContext.sender)
     }
 
     /**
@@ -403,7 +504,7 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
     private fun getSignatureKeyPair(
         privateKeyId: String,
         messageSenderId: Int
-    ) = database.get(buildDatabaseIndexKey(privateKeyId, messageSenderId))
+    ) = db.get(buildDatabaseIndexKey(privateKeyId, messageSenderId))
 
 
     override fun appExecuteUnordered(

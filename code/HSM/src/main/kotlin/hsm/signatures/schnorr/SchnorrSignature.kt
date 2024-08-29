@@ -1,12 +1,15 @@
-package hsm.signatures
+package hsm.signatures.schnorr
 
 import confidential.client.ConfidentialServiceProxy
 import hsm.client.UncombinedConfidentialResponse
 import hsm.communications.readByteArray
 import hsm.communications.writeByteArray
+import hsm.signatures.SignatureScheme
 import org.bouncycastle.math.ec.ECPoint
 import vss.commitment.ellipticCurve.EllipticCurveCommitment
 import java.io.*
+import java.math.BigInteger
+import java.util.*
 import kotlin.system.exitProcess
 
 class SchnorrSignature(
@@ -14,6 +17,9 @@ class SchnorrSignature(
     private var signingPublicKey: ByteArray,
     private var randomPublicKey: ByteArray
 ) : Externalizable {
+
+    // Identifier used to identify the corresponding signature scheme when deserializing a signature
+    private val id = SignatureScheme.SCHNORR.ordinal
 
     fun getSigma() = sigma
 
@@ -32,6 +38,33 @@ class SchnorrSignature(
         signingPublicKey = readByteArray(`in`)
         randomPublicKey = readByteArray(`in`)
     }
+
+    fun serialize(): ByteArray {
+        val serializedData: ByteArray
+        ByteArrayOutputStream().use { bos ->
+            ObjectOutputStream(bos).use { out ->
+                out.writeInt(id)
+                writeByteArray(out, sigma)
+                writeByteArray(out, signingPublicKey)
+                writeByteArray(out, randomPublicKey)
+                out.flush()
+                bos.flush()
+                serializedData = bos.toByteArray()
+            }
+        }
+        return serializedData
+    }
+
+    override fun toString(): String {
+        return """
+            SchnorrSignature {
+                sigma: ${BigInteger(sigma).toString(16).uppercase(Locale.getDefault())},
+                signingPk: ${BigInteger(signingPublicKey).toString(16).uppercase(Locale.getDefault())},
+                randomPk: ${BigInteger(randomPublicKey).toString(16).uppercase(Locale.getDefault())},
+            }
+        """.trimIndent()
+    }
+
     companion object {
         fun buildFinalSignature(
             signatureResponse: UncombinedConfidentialResponse,
@@ -53,7 +86,7 @@ class SchnorrSignature(
             }
             val signingPublicKey = schnorrSignatureScheme.decodePublicKey(partialSignature.getSigningPublicKey())
 
-            val f = 1 // TODO: Maybe put this constant somewhere else, or get it from the system.config somehow
+            val f = serviceProxy.currentF
             val signingKeyCommitment: EllipticCurveCommitment = partialSignature.getSigningKeyCommitment()
             val randomKeyCommitment: EllipticCurveCommitment = partialSignature.getRandomKeyCommitment()
             val randomPublicKey: ECPoint = partialSignature.getRandomPublicKey()
@@ -69,8 +102,19 @@ class SchnorrSignature(
                 randomPublicKey,
                 *partialSignatures
             )
-
             return signature
+        }
+
+        fun deserialize(serializedSignature: ByteArray): SchnorrSignature {
+            ByteArrayInputStream(serializedSignature).use { bis ->
+                ObjectInputStream(bis).use { `in` ->
+                    val signatureScheme = SignatureScheme.getScheme(`in`.readInt())
+                    val sigma = readByteArray(`in`)
+                    val signingPublicKey = readByteArray(`in`)
+                    val randomPublicKey = readByteArray(`in`)
+                    return SchnorrSignature(sigma, signingPublicKey, randomPublicKey)
+                }
+            }
         }
     }
 }

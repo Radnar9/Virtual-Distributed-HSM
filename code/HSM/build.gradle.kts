@@ -1,11 +1,11 @@
 plugins {
-    kotlin("jvm") version "1.9.22"
+    kotlin("jvm") version "2.0.0"
     distribution
     id("org.hidetake.ssh") version "2.11.2" apply true
 }
 
 group = "hsm"
-version = "0.2"
+version = "1.0"
 
 repositories {
     mavenCentral()
@@ -106,16 +106,18 @@ dependencies {
     implementation("commons-codec:commons-codec:1.15")
 
     // https://mvnrepository.com/artifact/ch.qos.logback/logback-core
-    implementation("ch.qos.logback:logback-core:1.4.12")
+    implementation("ch.qos.logback:logback-core:1.4.14")
 
     // https://mvnrepository.com/artifact/ch.qos.logback/logback-classic
     implementation("ch.qos.logback:logback-classic:1.4.12")
 
     // https://mvnrepository.com/artifact/io.netty/netty-all
-    implementation("io.netty:netty-all:4.1.106.Final")
+    implementation("io.netty:netty-all:4.1.112.Final")
 
     // https://mvnrepository.com/artifact/org.slf4j/slf4j-api
     implementation("org.slf4j:slf4j-api:1.7.32")
+
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0-RC")
 
     testImplementation("org.jetbrains.kotlin:kotlin-test")
 }

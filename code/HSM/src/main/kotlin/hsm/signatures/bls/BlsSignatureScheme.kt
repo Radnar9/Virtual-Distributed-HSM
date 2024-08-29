@@ -1,10 +1,10 @@
-package bls
+package hsm.signatures.bls
 
 import hsm.signatures.KeyPair
 import java.math.BigInteger
 
 
-class BLS(threshold: Int) {
+class BlsSignatureScheme(threshold: Int) {
     private external fun initialize(threshold: Int)
     private external fun getOrderBytes(): ByteArray
     private external fun computeKeyPair(): Array<ByteArray>
@@ -45,7 +45,7 @@ class BLS(threshold: Int) {
         return computeSignature(privateKey, message)
     }
 
-    fun verify(signature: ByteArray, message: ByteArray, publicKey: ByteArray): Boolean {
+    fun verifySignature(signature: ByteArray, message: ByteArray, publicKey: ByteArray): Boolean {
         return computeVerification(signature, message, publicKey)
     }
 
@@ -55,9 +55,8 @@ class BLS(threshold: Int) {
         message: ByteArray,
     ): ByteArray {
         val validPartialSignatures = partialSignatures.filter { partialSignature ->
-            verify(partialSignature.value, message, partialPublicKeys[partialSignature.key]!!)
+            verifySignature(partialSignature.value, message, partialPublicKeys[partialSignature.key]!!)
         }
-        // TODO: if validPartialSignatures < minThreshold -> return a custom exception like SignatureException
         val serializedPartialSignatures = serializePartialData(validPartialSignatures)
         return interpolatePartialSignatures(*serializedPartialSignatures)
     }
