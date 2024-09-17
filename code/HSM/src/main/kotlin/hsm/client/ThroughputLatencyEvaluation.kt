@@ -1,7 +1,7 @@
 package hsm.client
 
 import kotlinx.coroutines.*
-import hsm.signatures.SignatureScheme
+import hsm.signatures.KeyScheme
 import hsm.signatures.stringToSignatureScheme
 import java.math.BigInteger
 import java.util.concurrent.CountDownLatch
@@ -13,9 +13,9 @@ import kotlin.system.measureTimeMillis
 // Not working with multiple clients because of a problem in the implementation of many elliptic curves on COBRA
 fun main(args: Array<String>) {
     if (args.isEmpty() || args.size < 2) {
-        println("""Usage: hsm.client.ThroughputLatencyEvaluationKt  keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr or bls>
+        println("""Usage: hsm.client.ThroughputLatencyEvaluationKt  keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr | bls | symmetric>
                                                                     sign      <initial client id> <number of clients> <number of reps> <index key id> <schnorr or bls> <data>
-                                                                    encDec    <initial client id> <number of clients> <number of reps> <data>
+                                                                    encDec    <initial client id> <number of clients> <number of reps> <index key id> <data>
                                                                     all       <initial client id> <number of clients> <number of reps>
         """.trimIndent())
         exitProcess(-1)
@@ -72,8 +72,9 @@ private fun operationTests(threadId: Long, operation: String, times: Int, api: C
                     api.signData(indexId, scheme, args[6].toByteArray())
                 }
                 "encDec" -> {
-                    val ciphertext = api.encryptData(args[4].toByteArray())
-                    api.decryptData(ciphertext!!)
+                    val indexId = args[4]
+                    val ciphertext = api.encryptData(indexId, args[5].toByteArray())
+                    api.decryptData(indexId, ciphertext!!)
                 }
             }
         }
@@ -128,27 +129,37 @@ private class ClientHelperCoroutines(
 private fun testAllFunctionalities(iteration: Int, api: ClientAPI) {
     // Generates a Schnorr signing key (private key & public key)
     val schnorrPrivateKeyId = "schnorr$iteration"
-    val publicKeySchnorr = api.generateKey(schnorrPrivateKeyId, SignatureScheme.SCHNORR)
-    println("Schnorr signing public key: ${BigInteger(publicKeySchnorr).toString(16)}\n")
+    val successSchnorr = api.generateKey(schnorrPrivateKeyId, KeyScheme.SCHNORR)
+    println("Schnorr key generation: ${if (successSchnorr) "successful" else "failed"}")
 
     // Generates a BLS signing key (private key & public key)
     val blsPrivateKeyId = "bls$iteration"
-    val publicKeyBls = api.generateKey(blsPrivateKeyId, SignatureScheme.BLS)
-    println("BLS signing public key: ${BigInteger(publicKeyBls).toString(16)}\n")
+    val successBls = api.generateKey(blsPrivateKeyId, KeyScheme.BLS)
+    println("BLS key generation: ${if (successBls) "successful" else "failed"}")
 
+    // Generates a symmetric key (for the encryption/decryption operation)
+    val symmetricKeyId = "symmetric$iteration"
+    val successSymmetric = api.generateKey(symmetricKeyId, KeyScheme.SYMMETRIC)
+    println("Symmetric key generation: ${if (successSymmetric) "successful" else "failed"}")
 
     // Sign a message (Schnorr signature)
     val schnorrDataToSign = "SchnorrSignatureTest".toByteArray()
-    val schnorrSignature = api.signData(schnorrPrivateKeyId, SignatureScheme.SCHNORR, schnorrDataToSign)
+    val schnorrSignature = api.signData(schnorrPrivateKeyId, KeyScheme.SCHNORR, schnorrDataToSign)
     println("Schnorr signature: ${BigInteger(schnorrSignature).toString(16)}\n")
+
+    val publicKeySchnorr = api.getPublicKey(schnorrPrivateKeyId, KeyScheme.SCHNORR)
+    println("Schnorr signing public key: ${BigInteger(publicKeySchnorr).toString(16)}\n")
 
     val schnorrValidity = api.validateSignature(schnorrSignature, schnorrDataToSign)
     println("The Schnorr signature is ${if (schnorrValidity) "valid" else "invalid"}.\n")
 
     // Sign a message (BLS signature)
     val blsDataToSign = "BLSSignatureTest".toByteArray()
-    val blsSignature = api.signData(blsPrivateKeyId, SignatureScheme.BLS, blsDataToSign)
+    val blsSignature = api.signData(blsPrivateKeyId, KeyScheme.BLS, blsDataToSign)
     println("BLS signature: ${BigInteger(blsSignature).toString(16)}\n")
+
+    val publicKeyBls = api.getPublicKey(blsPrivateKeyId, KeyScheme.BLS)
+    println("BLS signing public key: ${BigInteger(publicKeyBls).toString(16)}\n")
 
     val blsValidity = api.validateSignature(blsSignature, blsDataToSign)
     println("The BLS signature is ${if (blsValidity) "valid" else "invalid"}.\n")
@@ -156,10 +167,10 @@ private fun testAllFunctionalities(iteration: Int, api: ClientAPI) {
 
     // Encryption
     val messageToEncrypt = "This is data to be encrypted"
-    val ciphertext = api.encryptData(messageToEncrypt.toByteArray())
+    val ciphertext = api.encryptData(symmetricKeyId, messageToEncrypt.toByteArray())
     println("Ciphertext: ${BigInteger(ciphertext).toString(16)}")
 
-    val plainData = api.decryptData(ciphertext!!)
+    val plainData = api.decryptData(symmetricKeyId, ciphertext!!)
     println("Decrypted message: \"${plainData?.decodeToString()}\"")
 }
 

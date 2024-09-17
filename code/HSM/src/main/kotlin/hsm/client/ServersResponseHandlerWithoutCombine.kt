@@ -35,7 +35,7 @@ class ServersResponseHandlerWithoutCombine(private val clientId: Int) : ServersR
         for (msgList in msgs.values) {
             if (msgList.size != sameContent) continue
 
-            val firstMsg = msgList.first
+            val firstMsg = msgList.first()
             val plainData = firstMsg.plainData
 
             if (firstMsg.shares == null) {
@@ -51,7 +51,7 @@ class ServersResponseHandlerWithoutCombine(private val clientId: Int) : ServersR
                 (0..<numSecrets).forEachIndexed { i, _ -> verifiableShares[i].add(sharesI[i]) }
             }
 
-            val sharedData: List<ByteArray> = verifiableShares.map { secretI -> secretI.first.sharedData }
+            val sharedData: List<ByteArray> = verifiableShares.map { secretI -> secretI.first().sharedData }
             val allVerifiableShares = verifiableShares.map { secretI -> secretI.map { verifiableShare -> verifiableShare } }
 
             return UncombinedConfidentialResponse(lastMsg!!.viewID, plainData, allVerifiableShares, sharedData)

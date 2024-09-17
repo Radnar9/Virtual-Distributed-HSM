@@ -7,7 +7,8 @@ enum class Operation {
     GET_RANDOM_NUMBER,
     ENCRYPT,
     DECRYPT,
-    AVAILABLE_KEYS,;
+    AVAILABLE_KEYS,
+    EMPTY;
 
     companion object {
         fun getOperation(ordinal: Int): Operation {

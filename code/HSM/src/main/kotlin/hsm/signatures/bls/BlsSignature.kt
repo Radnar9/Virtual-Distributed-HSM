@@ -3,7 +3,7 @@ package hsm.signatures.bls
 import hsm.client.UncombinedConfidentialResponse
 import hsm.communications.readByteArray
 import hsm.communications.writeByteArray
-import hsm.signatures.SignatureScheme
+import hsm.signatures.KeyScheme
 import java.io.*
 import java.math.BigInteger
 import java.util.*
@@ -14,7 +14,7 @@ class BlsSignature(
 ) : Externalizable {
 
     // Identifier used to identify the corresponding signature scheme when deserializing a signature
-    private val id = SignatureScheme.BLS.ordinal
+    private val id = KeyScheme.BLS.ordinal
 
     fun getSignature() = signature
     fun getSigningPublicKey() = signingPublicKey
@@ -90,7 +90,7 @@ class BlsSignature(
         fun deserialize(data: ByteArray): BlsSignature {
             ByteArrayInputStream(data).use { bis ->
                 ObjectInputStream(bis).use { `in` ->
-                    val signatureScheme = SignatureScheme.getScheme(`in`.readInt())
+                    val keyScheme = KeyScheme.getScheme(`in`.readInt())
                     val signature = readByteArray(`in`)
                     val signingPublicKey = readByteArray(`in`)
                     return BlsSignature(signature, signingPublicKey)

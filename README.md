@@ -32,17 +32,18 @@ Inside the `/scripts` folder, use the `run.sh` to run the project as follows:
 
 Specifically, to test our project, you can use the `HsmClient` class or the `ThroughputLatencyEvaluation` class, which was used to perform the experimental evaluation presented in the [/docs](./docs). We have developed a ClientAPI, which can be used via CLI through the following commands:
 ```text
-hsm.client.HsmClientKt                      keyGen           <client id> <index key id> <schnorr or bls>
-                                            sign             <client id> <index key id> <schnorr or bls> <data>
-                                            enc              <client id> <data>
-                                            dec              <client id> <ciphertext>
+hsm.client.HsmClientKt                      keyGen           <client id> <index key id> <schnorr | bls | symmetric>
+                                            sign             <client id> <index key id> <schnorr | bls> <data>
+                                            enc              <client id> <index key id> <data>
+                                            dec              <client id> <index key id> <ciphertext>
+                                            getPk            <client id> <index key id> <schnorr | bls>
                                             valSign          <client id> <signature> <initial data>
                                             availableKeys    <client id>
                                             help
                                    
-hsm.client.ThroughputLatencyEvaluationKt    keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr or bls>
-                                            sign      <initial client id> <number of clients> <number of reps> <index key id> <schnorr or bls> <data>
-                                            encDec    <initial client id> <number of clients> <number of reps> <data>
+hsm.client.ThroughputLatencyEvaluationKt    keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr | bls | symmetric>
+                                            sign      <initial client id> <number of clients> <number of reps> <index key id> <schnorr | bls> <data>
+                                            encDec    <initial client id> <number of clients> <number of reps> <index key id> <data>
                                             all       <initial client id> <number of clients> <number of reps>
 ```
 
@@ -60,9 +61,10 @@ First, initialize the required number of servers, in this case we are using 4:
 Then, execute the available operations using the client API:
 ```text
 ./run.sh hsm.client.HsmClientKt keyGen 1 myfirstblskeypair123 bls
+./run.sh hsm.client.HsmClientKt keyGen 1 mysymmetrickeyid symmetric
 ./run.sh hsm.client.HsmClientKt sign 1 myfirstblskeypair123 bls SignThisUsefulMessagePlease
-./run.sh hsm.client.HsmClientKt enc 1 VerySecretKey
-./run.sh hsm.client.HsmClientKt dec 1 -5312fffa88a1fffffffefeffffffdfb248282d98fe761a0ed85f239dceb2ee5b7acb4b9c5ad61c292cfcd188d62f5affffffce00f866f24dd9eb10f2d48467e081c2c27d7753b4c4aa8b66c976f2eac99cb0dbba19f26fa32403df87da26fea8466cc6eb
+./run.sh hsm.client.HsmClientKt enc 1 mysymmetrickeyid VerySecretKey
+./run.sh hsm.client.HsmClientKt dec 1 mysymmetrickeyid -5312fffa88a1fffffffefeffffffdfb248282d98fe761a0ed85f239dceb2ee5b7acb4b9c5ad61c292cfcd188d62f5affffffce00f866f24dd9eb10f2d48467e081c2c27d7753b4c4aa8b66c976f2eac99cb0dbba19f26fa32403df87da26fea8466cc6eb
 ```
 
 ##### NOTE: By default, the project is configured to work with 4 replicas, tolerating 1 fault; however, you can change these settings by changing the `host.config` file, adding more addresses, and the `system.config` file, changing the lines 66, 69, and 153 to your preferred values.

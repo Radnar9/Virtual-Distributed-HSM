@@ -7,10 +7,11 @@ import kotlin.system.exitProcess
 fun main(args: Array<String>) {
     if (args.isEmpty() || args.size < 2) {
         println("""
-            Usage: hsm.client.HsmClientKt    keyGen           <client id> <index key id> <schnorr or bls>
-                                             sign             <client id> <index key id> <schnorr or bls> <data>
-                                             enc              <client id> <data>
-                                             dec              <client id> <ciphertext>
+            Usage: hsm.client.HsmClientKt    keyGen           <client id> <index key id> <schnorr | bls | symmetric>
+                                             sign             <client id> <index key id> <schnorr | bls> <data>
+                                             enc              <client id> <index key id> <data>
+                                             dec              <client id> <index key id> <ciphertext>
+                                             getPk            <client id> <index key id> <schnorr | bls>
                                              valSign          <client id> <signature> <initial data>
                                              availableKeys    <client id>
                                              help
@@ -25,8 +26,8 @@ fun main(args: Array<String>) {
         "keyGen" -> {
             val indexId = args[2]
             val signatureScheme = stringToSignatureScheme(args[3])
-            val publicKey = clientAPI.generateKey(indexId, signatureScheme)
-            println("$signatureScheme signing public key: ${BigInteger(publicKey).toString(16)}\n")
+            val isSuccess = clientAPI.generateKey(indexId, signatureScheme)
+            println("Key generation: ${if (isSuccess) "successful" else "failed"}")
         }
         "sign" -> {
             val indexId = args[2]
@@ -36,13 +37,15 @@ fun main(args: Array<String>) {
             println("$signatureScheme signature: ${BigInteger(signature).toString(16)}\n")
         }
         "enc" -> {
-            val data = args[2].toByteArray()
-            val ciphertext = clientAPI.encryptData(data)
+            val indexId = args[2]
+            val data = args[3].toByteArray()
+            val ciphertext = clientAPI.encryptData(indexId, data)
             println("Encrypted message: ${BigInteger(ciphertext).toString(16)}\n")
         }
         "dec" -> {
-            val ciphertext = BigInteger(args[2], 16).toByteArray()
-            val plainData = clientAPI.decryptData(ciphertext)
+            val indexId = args[2]
+            val ciphertext = BigInteger(args[3], 16).toByteArray()
+            val plainData = clientAPI.decryptData(indexId, ciphertext)
             println("Decrypted message: ${plainData?.decodeToString()}\n")
         }
         "valSign" -> {
@@ -50,6 +53,12 @@ fun main(args: Array<String>) {
             val initialData = args[3].toByteArray()
             val validity = clientAPI.validateSignature(signature.toByteArray(), initialData)
             println("The signature is ${if (validity) "valid" else "invalid"}.\n")
+        }
+        "getPk" -> {
+            val indexId = args[2]
+            val signatureScheme = stringToSignatureScheme(args[3])
+            val pk = clientAPI.getPublicKey(indexId, signatureScheme)
+            println("$signatureScheme signing public key: ${BigInteger(pk).toString(16)}\n")
         }
         "availableKeys" -> clientAPI.availableKeys()
         "help" -> clientAPI.commands()

@@ -4,7 +4,7 @@ import confidential.client.ConfidentialServiceProxy
 import hsm.client.UncombinedConfidentialResponse
 import hsm.communications.readByteArray
 import hsm.communications.writeByteArray
-import hsm.signatures.SignatureScheme
+import hsm.signatures.KeyScheme
 import org.bouncycastle.math.ec.ECPoint
 import vss.commitment.ellipticCurve.EllipticCurveCommitment
 import java.io.*
@@ -19,7 +19,7 @@ class SchnorrSignature(
 ) : Externalizable {
 
     // Identifier used to identify the corresponding signature scheme when deserializing a signature
-    private val id = SignatureScheme.SCHNORR.ordinal
+    private val id = KeyScheme.SCHNORR.ordinal
 
     fun getSigma() = sigma
 
@@ -108,7 +108,7 @@ class SchnorrSignature(
         fun deserialize(serializedSignature: ByteArray): SchnorrSignature {
             ByteArrayInputStream(serializedSignature).use { bis ->
                 ObjectInputStream(bis).use { `in` ->
-                    val signatureScheme = SignatureScheme.getScheme(`in`.readInt())
+                    val keyScheme = KeyScheme.getScheme(`in`.readInt())
                     val sigma = readByteArray(`in`)
                     val signingPublicKey = readByteArray(`in`)
                     val randomPublicKey = readByteArray(`in`)

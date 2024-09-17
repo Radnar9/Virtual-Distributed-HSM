@@ -8,9 +8,10 @@ import hsm.dprf.DPRFPublicParameters
 import hsm.dprf.DPRFResult
 import hsm.encryption.DiSE
 import hsm.encryption.toCiphertextMetadata
+import hsm.exceptions.InvalidKeySchemeException
 import hsm.signatures.schnorr.SchnorrSignature
 import hsm.signatures.schnorr.SchnorrSignatureScheme
-import hsm.signatures.SignatureScheme
+import hsm.signatures.KeyScheme
 import hsm.signatures.bls.BlsSignature
 import java.io.ByteArrayInputStream
 import java.io.ObjectInputStream
@@ -26,29 +27,27 @@ class ClientAPI(private val clientId: Int) {
     private val blsScheme = BlsSignatureScheme(currentF)
     private val dise = DiSE(clientId.toBigInteger(), currentF, EllipticCurveConstants.secp256r1.PARAMETERS, secretKey = BigInteger("7f348d53ba8e43bba3585746af343fe1", 16))
 
-    fun generateKey(indexId: String, signatureScheme: SignatureScheme): ByteArray {
-        val keyGenRequest = KeyGenerationRequest(indexId, signatureScheme)
+    fun generateKey(indexId: String, keyScheme: KeyScheme): Boolean {
+        val keyGenRequest = KeyGenerationRequest(indexId, keyScheme)
         val response = serviceProxy.invokeOrderedOperation(keyGenRequest.serialize()) as UncombinedConfidentialResponse
-        val publicKey = when (signatureScheme) {
-            SignatureScheme.SCHNORR -> response.getPlainData()
-            SignatureScheme.BLS -> BlsSignature.buildFinalPublicKey(response, blsScheme)
-        }
-        return publicKey
+        val successfulMessage = response.getVerifiableShares()[0][0].share.share
+        return successfulMessage == BigInteger("1")
     }
 
-    fun signData(indexId: String, signatureScheme: SignatureScheme, data: ByteArray): ByteArray {
-        val signingReq = SignatureRequest(indexId, data, signatureScheme)
+    fun signData(indexId: String, keyScheme: KeyScheme, data: ByteArray): ByteArray {
+        val signingReq = SignatureRequest(indexId, data, keyScheme)
         val response = serviceProxy.invokeOrderedOperation(signingReq.serialize()) as UncombinedConfidentialResponse
-        val finalSignature = when (signatureScheme) {
-            SignatureScheme.SCHNORR -> SchnorrSignature.buildFinalSignature(response, schnorrScheme, data, serviceProxy).serialize()
-            SignatureScheme.BLS -> BlsSignature.buildFinalSignature(response, blsScheme, data).serialize()
+        val finalSignature = when (keyScheme) {
+            KeyScheme.SCHNORR -> SchnorrSignature.buildFinalSignature(response, schnorrScheme, data, serviceProxy).serialize()
+            KeyScheme.BLS -> BlsSignature.buildFinalSignature(response, blsScheme, data).serialize()
+            else -> throw InvalidKeySchemeException("Invalid signature scheme")
         }
         return finalSignature
     }
 
-    fun encryptData(data: ByteArray): ByteArray? {
+    fun encryptData(indexId: String, data: ByteArray): ByteArray? {
         val committedData = dise.commitData(data)
-        val encDecRequest = EncDecRequest(committedData.serialize(), Operation.ENCRYPT)
+        val encDecRequest = EncDecRequest(indexId, committedData.serialize(), Operation.ENCRYPT)
         val response = serviceProxy.invokeOrderedOperation(encDecRequest.serialize()) as UncombinedConfidentialResponse
 
         val partialResults = response.getVerifiableShares()[0].associate { res ->
@@ -74,12 +73,12 @@ class ClientAPI(private val clientId: Int) {
         return ciphertext
     }
 
-    fun decryptData(ciphertext: ByteArray): ByteArray? {
+    fun decryptData(indexId: String, ciphertext: ByteArray): ByteArray? {
         val parsedCiphertext = dise.parseEncryptedData(ciphertext)
         val ciphertextMetadata = parsedCiphertext.toCiphertextMetadata()
         val evalInput = BigInteger(1, "${parsedCiphertext.encryptorId}".toByteArray().plus(parsedCiphertext.alpha))
 
-        val encDecRequest = EncDecRequest(ciphertextMetadata.serialize(), Operation.DECRYPT)
+        val encDecRequest = EncDecRequest(indexId, ciphertextMetadata.serialize(), Operation.DECRYPT)
         val response = serviceProxy.invokeOrderedOperation(encDecRequest.serialize()) as UncombinedConfidentialResponse
 
         val partialResults = response.getVerifiableShares()[0].associate { res ->
@@ -103,10 +102,21 @@ class ClientAPI(private val clientId: Int) {
         return decryptedMessage
     }
 
+    fun getPublicKey(indexId: String, keyScheme: KeyScheme): ByteArray {
+        val pkRequest = PublicKeyRequest(indexId, keyScheme)
+        val response = serviceProxy.invokeOrderedOperation(pkRequest.serialize()) as UncombinedConfidentialResponse
+        val publicKey = when (keyScheme) {
+           KeyScheme.SCHNORR -> response.getPlainData()
+           KeyScheme.BLS -> BlsSignature.buildFinalPublicKey(response, blsScheme)
+           else -> throw InvalidKeySchemeException("Invalid signature key scheme")
+       }
+       return publicKey
+    }
+
     fun validateSignature(signature: ByteArray, data: ByteArray): Boolean {
         val signatureScheme = deserializeSignatureScheme(signature)
         val validity = when (signatureScheme) {
-            SignatureScheme.SCHNORR -> {
+            KeyScheme.SCHNORR -> {
                 val finalSignature = SchnorrSignature.deserialize(signature)
                 schnorrScheme.verifySignature(
                     data,
@@ -115,7 +125,7 @@ class ClientAPI(private val clientId: Int) {
                     BigInteger(finalSignature.getSigma())
                 )
             }
-            SignatureScheme.BLS -> {
+            KeyScheme.BLS -> {
                 val finalSignature = BlsSignature.deserialize(signature)
                 blsScheme.verifySignature(
                     finalSignature.getSignature(),
@@ -123,11 +133,12 @@ class ClientAPI(private val clientId: Int) {
                     finalSignature.getSigningPublicKey()
                 )
             }
+            else -> throw InvalidKeySchemeException("Invalid signature scheme")
         }
         return validity
     }
 
-    private data class KeyData(val indexId: String, val publicKey: String, val signatureScheme: SignatureScheme)
+    private data class KeyData(val indexId: String, val publicKey: String, val keyScheme: KeyScheme)
     fun availableKeys() {
         val operationBytes = byteArrayOf(Operation.AVAILABLE_KEYS.ordinal.toByte())
         val response = serviceProxy.invokeOrderedOperation(operationBytes) as UncombinedConfidentialResponse
@@ -138,7 +149,7 @@ class ClientAPI(private val clientId: Int) {
             println("""
                 indexId:         ${key.indexId}
                 public key:      ${key.publicKey}
-                signatureScheme: ${key.signatureScheme}
+                signatureScheme: ${key.keyScheme}
                 
             """.trimIndent())
         }
@@ -147,17 +158,18 @@ class ClientAPI(private val clientId: Int) {
     fun commands() {
         println("----| Available Commands |----")
         println("""
-            hsm.client.HsmClientKt                      keyGen           <client id> <index key id> <schnorr or bls>
-                                                        sign             <client id> <index key id> <schnorr or bls> <data>
-                                                        enc              <client id> <data>
-                                                        dec              <client id> <ciphertext>
+            hsm.client.HsmClientKt                      keyGen           <client id> <index key id> <schnorr | bls | symmetric>
+                                                        sign             <client id> <index key id> <schnorr | bls> <data>
+                                                        enc              <client id> <index key id> <data>
+                                                        dec              <client id> <index key id> <ciphertext>
+                                                        getPk            <client id> <index key id> <schnorr | bls>
                                                         valSign          <client id> <signature> <initial data>
                                                         availableKeys    <client id>
                                                         help
                                    
-            hsm.client.ThroughputLatencyEvaluationKt    keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr or bls>
-                                                        sign      <initial client id> <number of clients> <number of reps> <index key id> <schnorr or bls> <data>
-                                                        encDec    <initial client id> <number of clients> <number of reps> <data>
+            hsm.client.ThroughputLatencyEvaluationKt    keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr | bls | symmetric>
+                                                        sign      <initial client id> <number of clients> <number of reps> <index key id> <schnorr | bls> <data>
+                                                        encDec    <initial client id> <number of clients> <number of reps> <index key id> <data>
                                                         all       <initial client id> <number of clients> <number of reps>
         """.trimIndent())
     }
@@ -169,11 +181,11 @@ class ClientAPI(private val clientId: Int) {
     /**
      * Deserializes the first integer from the signature to discover the signature's scheme.
      */
-    private fun deserializeSignatureScheme(signatureBytes: ByteArray): SignatureScheme {
+    private fun deserializeSignatureScheme(signatureBytes: ByteArray): KeyScheme {
         ByteArrayInputStream(signatureBytes).use { bis ->
             ObjectInputStream(bis).use { `in` ->
-                val signatureScheme = SignatureScheme.getScheme(`in`.readInt())
-                return signatureScheme
+                val keyScheme = KeyScheme.getScheme(`in`.readInt())
+                return keyScheme
             }
         }
     }
@@ -186,8 +198,14 @@ class ClientAPI(private val clientId: Int) {
                 for (i in 0..<size) {
                     val indexId = `in`.readUTF()
                     val publicKey = readByteArray(`in`)
-                    val signatureScheme = SignatureScheme.getScheme(`in`.readInt())
-                    list.add(KeyData(indexId, BigInteger(publicKey).toString(16), signatureScheme))
+                    val keyScheme = KeyScheme.getScheme(`in`.readInt())
+                    list.add(
+                        KeyData(
+                            indexId,
+                            if (publicKey.isEmpty()) "" else BigInteger(publicKey).toString(16),
+                            keyScheme
+                        )
+                    )
                 }
                 return list
             }
