@@ -1,7 +1,7 @@
 <div align="center">
 
 # Virtual and Distributed HSM
-##### A cheaper, more convenient, and secure way to protect your secret keys and perform cryptographic operations.
+##### A cheaper, more practical, and secure way to protect your secret keys and perform cryptographic operations.
 
 </div>
 
@@ -28,22 +28,24 @@ To demonstrate how to run the project, we will use the setting of 4 servers, wit
 Inside the `/scripts` folder, use the `run.sh` to run the project as follows:
 * `./run.sh hsm.server.HsmServerKt <server_id (0-3)>`
 * `./run.sh hsm.client.HsmClientKt <operation> <client_id> ...`
-* `./run.sh hsm.client.ThroughputLatencyEvaluationKt <operation> <client_id>`
+* `./run.sh hsm.client.ThroughputLatencyEvaluationKt <operation> <client_id> ...`
 
 Specifically, to test our project, you can use the `HsmClient` class or the `ThroughputLatencyEvaluation` class, which was used to perform the experimental evaluation presented in the [/docs](./docs). We have developed a ClientAPI, which can be used via CLI through the following commands:
 ```text
-hsm.client.HsmClientKt                      keyGen           <client id> <index key id> <schnorr | bls | symmetric>
-                                            sign             <client id> <index key id> <schnorr | bls> <data>
+hsm.client.HsmClientKt                      keyGen           <client id> <index key id> <schnorr || bls || symmetric>
+                                            sign             <client id> <index key id> <schnorr || bls> <data>
                                             enc              <client id> <index key id> <data>
                                             dec              <client id> <index key id> <ciphertext>
-                                            getPk            <client id> <index key id> <schnorr | bls>
+                                            getPk            <client id> <index key id> <schnorr || bls>
                                             valSign          <client id> <signature> <initial data>
                                             availableKeys    <client id>
                                             help
                                    
-hsm.client.ThroughputLatencyEvaluationKt    keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr | bls | symmetric>
-                                            sign      <initial client id> <number of clients> <number of reps> <index key id> <schnorr | bls> <data>
-                                            encDec    <initial client id> <number of clients> <number of reps> <index key id> <data>
+hsm.client.ThroughputLatencyEvaluationKt    keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr || bls || symmetric>
+                                            sign      <initial client id> <number of clients> <number of reps> <index key id> <schnorr || bls> <data>
+                                            valSign   <initial client id> <number of clients> <number of reps> <index key id> <schnorr || bls> <data>
+                                            enc       <initial client id> <number of clients> <number of reps> <index key id> <data>
+                                            dec       <initial client id> <number of clients> <number of reps> <index key id> <data>
                                             all       <initial client id> <number of clients> <number of reps>
 ```
 

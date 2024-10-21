@@ -13,9 +13,11 @@ import kotlin.system.measureTimeMillis
 // Not working with multiple clients because of a problem in the implementation of many elliptic curves on COBRA
 fun main(args: Array<String>) {
     if (args.isEmpty() || args.size < 2) {
-        println("""Usage: hsm.client.ThroughputLatencyEvaluationKt  keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr | bls | symmetric>
-                                                                    sign      <initial client id> <number of clients> <number of reps> <index key id> <schnorr or bls> <data>
-                                                                    encDec    <initial client id> <number of clients> <number of reps> <index key id> <data>
+        println("""Usage: hsm.client.ThroughputLatencyEvaluationKt  keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr || bls || symmetric>
+                                                                    sign      <initial client id> <number of clients> <number of reps> <index key id> <schnorr || bls> <data>
+                                                                    valSign   <initial client id> <number of clients> <number of reps> <index key id> <schnorr || bls> <data>
+                                                                    enc       <initial client id> <number of clients> <number of reps> <index key id> <data>
+                                                                    dec       <initial client id> <number of clients> <number of reps> <index key id> <data>
                                                                     all       <initial client id> <number of clients> <number of reps>
         """.trimIndent())
         exitProcess(-1)
@@ -60,26 +62,75 @@ fun main(args: Array<String>) {
 private fun operationTests(threadId: Long, operation: String, times: Int, api: ClientAPI, args: Array<String>) {
     println("* Testing $operation in thread $threadId: STARTING")
     val executionTimes = DoubleArray(times)
-    repeat(times) {
-        val millis = measureTimeMillis {
-            when (operation) {
-                "all" -> testAllFunctionalities(it, api)
-                "keyGen" -> api.generateKey("${args[4]}$it", stringToSignatureScheme(args[5]))
-                "sign" -> {
-                    val indexId = args[4]
-                    val scheme = stringToSignatureScheme(args[5])
-                    api.generateKey(indexId, scheme)
-                    api.signData(indexId, scheme, args[6].toByteArray())
+    when (operation) {
+        "all" -> {
+            repeat(times) {
+                val millis = measureTimeMillis {
+                    testAllFunctionalities(it, api)
                 }
-                "encDec" -> {
-                    val indexId = args[4]
-                    val ciphertext = api.encryptData(indexId, args[5].toByteArray())
-                    api.decryptData(indexId, ciphertext!!)
-                }
+                executionTimes[it] = millis.toDouble()
+                println("$it:\t${millis / 1000.0} s")
             }
         }
-        executionTimes[it] = millis.toDouble()
-        println("$it:\t${millis / 1000.0} s")
+        "keyGen" -> {
+            repeat(times) {
+                val millis = measureTimeMillis {
+                    api.generateKey("${args[4]}$it", stringToSignatureScheme(args[5]))
+                }
+                executionTimes[it] = millis.toDouble()
+                println("$it:\t${millis / 1000.0} s")
+            }
+        }
+        "sign" -> {
+            val indexId = args[4]
+            val scheme = stringToSignatureScheme(args[5])
+            api.generateKey(indexId, scheme)
+            repeat(times) {
+                val millis = measureTimeMillis {
+                    api.signData(indexId, scheme, args[6].toByteArray())
+                }
+                executionTimes[it] = millis.toDouble()
+                println("$it:\t${millis / 1000.0} s")
+            }
+        }
+        "valSign" -> {
+            val indexId = args[4]
+            val scheme = stringToSignatureScheme(args[5])
+            api.generateKey(indexId, scheme)
+            val initialData = args[6].toByteArray()
+            val signature = api.signData(indexId, scheme, initialData)
+            repeat(times) {
+                val millis = measureTimeMillis {
+                    api.validateSignature(signature, initialData)
+                }
+                executionTimes[it] = millis.toDouble()
+                println("$it:\t${millis / 1000.0} s")
+            }
+        }
+        "enc" -> {
+            val indexId = args[4]
+            api.generateKey(indexId, KeyScheme.SYMMETRIC)
+            repeat(times) {
+                val millis = measureTimeMillis {
+                    api.encryptData(indexId, args[5].toByteArray())!!
+                }
+                executionTimes[it] = millis.toDouble()
+                println("$it:\t${millis / 1000.0} s")
+            }
+        }
+        "dec" -> {
+            val indexId = args[4]
+            api.generateKey(indexId, KeyScheme.SYMMETRIC)
+            val ciphertext = api.encryptData(indexId, args[5].toByteArray())
+            repeat(times) {
+                val millis = measureTimeMillis {
+                    api.decryptData(indexId, ciphertext!!)!!
+                }
+                executionTimes[it] = millis.toDouble()
+                println("$it:\t${millis / 1000.0} s")
+            }
+
+        }
     }
     println("* Testing $operation in thread $threadId: DONE\n")
     printStats(executionTimes)
@@ -174,15 +225,16 @@ private fun testAllFunctionalities(iteration: Int, api: ClientAPI) {
     println("Decrypted message: \"${plainData?.decodeToString()}\"")
 }
 
-private fun printStats(executionTimes: DoubleArray) {
+fun printStats(executionTimes: DoubleArray) {
     val results = executionTimes.drop((executionTimes.size * 0.1).toInt()).toDoubleArray()
+    val mean = results.average()
 
-    println("+ Mean: ${results.average()} ms")
+    println("+ Mean: $mean ms")
     println("+ Standard Deviation: ${standardDeviation(results)}")
-    println("+ Operations per second: ${(results.sum()/1000.0) / executionTimes.size}")
+    println("+ Operations per second: ${1000.0 / mean}")
 }
 
-private fun standardDeviation(numbers: DoubleArray): Double {
+fun standardDeviation(numbers: DoubleArray): Double {
     val mean = numbers.average()
     val variance = numbers.map { (it - mean).pow(2) }.average()
     return sqrt(variance)

@@ -49,9 +49,9 @@ fun main(args: Array<String>) {
             println("Decrypted message: ${plainData?.decodeToString()}\n")
         }
         "valSign" -> {
-            val signature = BigInteger(args[2], 16)
+            val signature = BigInteger(args[2], 16).toByteArray()
             val initialData = args[3].toByteArray()
-            val validity = clientAPI.validateSignature(signature.toByteArray(), initialData)
+            val validity = clientAPI.validateSignature(signature, initialData)
             println("The signature is ${if (validity) "valid" else "invalid"}.\n")
         }
         "getPk" -> {
