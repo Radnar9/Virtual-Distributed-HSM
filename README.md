@@ -25,7 +25,7 @@ Now, everything is installed and ready to be tested!
 ## ⇁ Running the Project
 To demonstrate how to run the project, we will use the setting of 4 servers, with 1 possible fault.
 
-Inside the `/scripts` folder, use the `run.sh` to run the project as follows:
+Inside the `/build/local` directory, use the `run.sh` to run the project as follows:
 * `./run.sh hsm.server.HsmServerKt <server_id (0-3)>`
 * `./run.sh hsm.client.HsmClientKt <operation> <client_id> ...`
 * `./run.sh hsm.client.ThroughputLatencyEvaluationKt <operation> <client_id> ...`
