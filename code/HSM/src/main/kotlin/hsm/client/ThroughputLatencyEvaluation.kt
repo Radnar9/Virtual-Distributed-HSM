@@ -10,7 +10,6 @@ import kotlin.math.sqrt
 import kotlin.system.exitProcess
 import kotlin.system.measureTimeMillis
 
-// Not working with multiple clients because of a problem in the implementation of many elliptic curves on COBRA
 fun main(args: Array<String>) {
     if (args.isEmpty() || args.size < 2) {
         println("""Usage: hsm.client.ThroughputLatencyEvaluationKt  keyGen    <initial client id> <number of clients> <number of reps> <index key id> <schnorr || bls || symmetric>
@@ -25,7 +24,7 @@ fun main(args: Array<String>) {
 
     val operation = args[0]
     val initialClientId = args[1].toInt()
-    val numClients = args[2].toInt()
+    val numClients = 1 // args[2].toInt()
     val numOperationsPerClient = args[3].toInt()
 
     val latch = CountDownLatch(numClients)
@@ -33,6 +32,7 @@ fun main(args: Array<String>) {
     // Single client test
     if (numClients == 1) {
         ClientHelperCoroutines(initialClientId, operation, numOperationsPerClient, args).singleTest()
+        println("* Evaluation completed!")
         return
     }
 
@@ -41,20 +41,16 @@ fun main(args: Array<String>) {
         ClientHelperThreads(initialClientId + i, latch, operation, numOperationsPerClient, args).start()
         Thread.sleep(10L)
     }
-
     latch.await()
 
-/*    runBlocking {
-        coroutineScope {
-            for (i in 0..<numClients) {
-                launch {
-                    ClientHelperCoroutines(initialClientId + i, operationId, numOperationsPerClient, args).run()
-                }
-                println("Launched: ${initialClientId + i}")
-//            delay(10L)
+    runBlocking {
+        for (i in 0..<numClients) {
+            launch(Dispatchers.Default) {
+                ClientHelperCoroutines(initialClientId, operation, numOperationsPerClient, args).run()
             }
+            println("Launched: ${initialClientId + i}")
         }
-    }*/
+    }
 
     println("* Evaluation completed!")
 }
@@ -163,7 +159,7 @@ private class ClientHelperCoroutines(
 ){
     val clientAPI = ClientAPI(clientId)
 
-    suspend fun run() = coroutineScope {
+    fun run() {
         try {
             operationTests(Thread.currentThread().id, operation, numOperations, clientAPI, args)
         } finally {

@@ -40,6 +40,7 @@ import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import kotlin.concurrent.withLock
 import kotlin.system.exitProcess
@@ -100,15 +101,16 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
         requests = TreeMap()
         data = TreeMap()
         signingData = TreeMap()
+
+        indexKeys = HashMap()
+        db = HashMap()
+
         cr = ConfidentialRecoverable(id, this)
         serviceReplica = ServiceReplica(id, cr, cr, cr)
         serverCommunicationSystem = serviceReplica.serverCommunicationSystem
         distributedPolynomialManager = cr.distributedPolynomialManager
         distributedPolynomialManager.setRandomPolynomialListener(this)
         distributedPolynomialManager.setRandomKeyPolynomialListener(this)
-
-        indexKeys = HashMap()
-        db = HashMap()
 
         randomKeyGenerationRequests = TreeMap()
         signKeyGenerationRequests = TreeMap()
@@ -537,21 +539,28 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
         try {
             ByteArrayOutputStream().use { bout ->
                 ObjectOutputStream(bout).use { out ->
-                    out.writeInt(requests.size)
-                    for ((key, value) in requests) {
-                        out.writeInt(key)
-                        out.writeObject(value)
+                    // map: clientId(int) -> set: indexIds(string)
+                    out.writeInt(indexKeys.size)
+                    for ((clientId, indexIds) in indexKeys) {
+                        out.writeInt(clientId)
+                        out.writeInt(indexIds.size)
+                        for (indexId in indexIds) {
+                            out.writeUTF(indexId)
+                        }
                     }
-                    out.writeInt(data.size)
-                    val shares = arrayOfNulls<VerifiableShare>(data.size)
-                    for ((index, entry: Map.Entry<Int, VerifiableShare>) in data.entries.withIndex()) {
-                        out.writeInt((entry.key))
-                        entry.value.writeExternal(out)
-                        shares[index] = entry.value
+                    // map: indexId(string) -> signatureKeyPair(privateKeyShare: VerifiableShare, pK: ByteArray, keyScheme: KeyScheme)
+                    out.writeInt(db.size)
+                    val shares = ArrayList<VerifiableShare>(db.size)
+                    for ((indexId, keyPair) in db) {
+                        out.writeUTF(indexId)
+                        writeByteArray(out, keyPair.publicKey)
+                        out.writeInt(keyPair.keyScheme.ordinal)
+                        keyPair.privateKeyShare.writeExternal(out)
+                        shares.add(keyPair.privateKeyShare)
                     }
                     out.flush()
                     bout.flush()
-                    return ConfidentialSnapshot(bout.toByteArray(), *shares)
+                    return ConfidentialSnapshot(bout.toByteArray(), *shares.toTypedArray())
                 }
             }
         } catch (e: IOException) {
@@ -564,21 +573,28 @@ class HsmServer(private val id: Int): ConfidentialSingleExecutable, RandomPolyno
         try  {
             ByteArrayInputStream(confidentialSnapshot.plainData).use { bin ->
                 ObjectInputStream(bin).use { `in` ->
-                    var size = `in`.readInt()
-                    requests = TreeMap<Int, MessageContext>()
-                    while (size-- > 0) {
-                        val key: Int = `in`.readInt()
-                        val value: MessageContext = `in`.readObject() as MessageContext
-                        requests[key] = value
+                    val clientsSize = `in`.readInt()
+                    for (i in 0..<clientsSize) {
+                        val clientId = `in`.readInt()
+                        val indexIdSetSize = `in`.readInt()
+                        val set = HashSet<IndexId>()
+                        for (j in 0..<indexIdSetSize) {
+                            val indexId = `in`.readUTF()
+                            set.add(indexId)
+                        }
+                        indexKeys[clientId] = set
                     }
-                    size = `in`.readInt()
-                    data = TreeMap<Int, VerifiableShare>()
+
+                    val keyPairsSize = `in`.readInt()
                     val shares: Array<VerifiableShare> = confidentialSnapshot.shares
-                    for (i in 0..<size) {
-                        val key: Int = `in`.readInt()
-                        val value: VerifiableShare = shares[i]
-                        value.readExternal(`in`)
-                        data[key] = value
+                    for (i in 0..<keyPairsSize) {
+                        val indexId = `in`.readUTF()
+                        val publicKey = readByteArray(`in`)
+                        val keyScheme = KeyScheme.getScheme(`in`.readInt())
+                        val privateKeyShare = shares[i]
+                        privateKeyShare.readExternal(`in`)
+                        val keyPair = SignatureKeyPair(privateKeyShare, publicKey, keyScheme)
+                        db[indexId] = keyPair
                     }
                 }
             }
