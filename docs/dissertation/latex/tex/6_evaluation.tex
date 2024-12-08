@@ -1,0 +1,92 @@
+\chapter{Experimental Evaluation} \label{chap:evaluation}
+%                                                                                and throughput
+This chapter addresses the experimental evaluation of our Virtual and Distributed HSM. Initially, we expose and make considerations about the obtained results regarding the latency of all the features implemented in our system. In the end, we discuss and compare our results to those achieved by the related work described in Section \ref{sec:virtual-hsms}.   
+
+All experiments were executed in a cluster composed of 16 physical machines connected through a Gigabit Ethernet. All used machines were Dell PowerEdge R410 servers, containing two quadcore 2.27 Intel Xeon E5520 processors with hyperthreading (supporting thus 16 hardware threads) and 32GB of memory, running Ubuntu Linux 22.04.4 LTS and JDK 17.
+
+
+%              and Throughput
+\section{Latency Evaluation} \label{sec:latency-throughput-eval}
+
+To evaluate the performance of our system, that is, the latency for each of the implemented features, we performed 5000 executions and calculated the mean and the standard deviation. These metrics provide us with an average of the system's performance and the existing variation or dispersion from the mean, respectively, allowing us to assess the consistency of the system's performance. A small standard deviation means that the data points tend to be close to the mean, indicating consistent performance, while a large standard deviation indicates that the performance values are more variable. Besides latency, we measured the number of operations our system can perform per second using a single client. This measure was captured using the mean of each operation divided by the total time taken for the 5000 executions to conclude. Furthermore, we performed the same batch of tests for two different replica infrastructure setups, so we could analyze the scalability of our system as the number of replicas increases. We started the evaluation using four replicas tolerating one faulty, and then we increased it to 7 replicas with two possible faulty.
+
+Our evaluations do not consider the varying sizes of the data sent by the client(s). This is because the data are hashed before being sent, so its size is determined by the hash of the original data. For example, with the SHA-256 hash algorithm, the size of the sent data is always 256 bits. Consequently, the results remain the same regardless of the length of the original message to be signed or encrypted.
+
+% [0.5ex] \hline \hline
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.25}
+\begin{table}[]
+\caption{Experimental results of the implemented features including latency mean (\textit{ms}), standard deviation (\textit{ms}), and operations per second.}
+\label{tab:latency-results}
+\centering
+\begin{tabular}{|cc|ccc|ccc|}
+\hline
+\multicolumn{2}{|c|}{\textit{(n, t)}} & \multicolumn{3}{c|}{\textit{(4, 1)}} & \multicolumn{3}{c|}{\textit{(7, 2)}} \\ \hline
+\multicolumn{2}{|c|}{\textit{Operation}} & \multicolumn{1}{c|}{\textit{Mean}} & \multicolumn{1}{c|}{\textit{Std. Dev.}} & \textit{Op/s} & \multicolumn{1}{c|}{\textit{Mean}} & \multicolumn{1}{c|}{\textit{Std. Dev.}} & \textit{Op/s} \\ [0.5ex] \hline \hline
+\multicolumn{1}{|c|}{\multirow{2}{*}{DKG}} & Schnorr & 20.51 & 1.67 & 48.76 & 25.87 & 2.04 & 38.65 \\ \cline{2-2}
+\multicolumn{1}{|c|}{} & BLS & 130.12 & 14.53 & 7.69 & 287.73 & 21.37 & 3.48 \\ \hline
+\multicolumn{1}{|c|}{\multirow{2}{*}{Signature}} & Schnorr & 21.54 & 1.75 & 46.43 & 27.87 & 2.26 & 35.88 \\ \cline{2-2}
+\multicolumn{1}{|c|}{} & BLS & 81.74 & 4.29 & 12.23 & 150.14 & 19.03 & 6.66 \\ \hline
+\multicolumn{1}{|c|}{\multirow{2}{*}{Validation}} & Schnorr & 3.88 & 1.02 & 257.78 & 3.70 & 0.74 & 270.11 \\ \cline{2-2}
+\multicolumn{1}{|c|}{} & BLS & 11.01 & 1.13 & 90.80 & 10.85 & 0.68 & 92.18 \\ \hline
+\multicolumn{2}{|c|}{Encryption} & 52.66 & 3.74 & 18.99 & 75.26 & 5.49 & 13.29 \\ \hline
+\multicolumn{2}{|c|}{Decryption} & 51.26 & 3.40 & 19.51 & 74.03 & 5.09 & 13.51 \\ \hline
+\end{tabular}
+\end{table}
+
+
+% BLS-based operation
+The overall results regarding the system's latency (Table~\ref{tab:latency-results}) show that when using an operation with BLS (both for DKG and Signatures), it is at least four times slower when compared with Schnorr. This is due to the BLS signatures utilizing bilinear pairing, which is known to be a hard computation, making Schnorr signatures much more efficient in this regard. Another fact that contributes to this difference is that, unlike Schnorr, we are using an external library, implemented using the C language, to compute the pairing and the BLS algorithm, and to interact with it, we need to use the Java Native Interface, which adds more overhead to these operations.
+
+Another interesting observation is that Schnorr scales very well with the increase in server number, both for DKG and signatures. In contrast, BLS latency practically doubles as we move from four to seven servers. The results for signature validation are not affected by scalability since it is independent of the servers, being only executed on the client-side. 
+
+In terms of encryption, or more precisely, threshold encryption and decryption, the resulting latency is identical for both operations since the steps involved are essentially the same. When scaling servers, the latency increases by approximately 50\%, a consequence of the increase in the number of servers, and therefore additional verification of commitments (when the client receives partial results from the servers, it needs to verify their integrity to ensure that authenticated encryption or decryption was maintained).
+
+\section{Comparison with Related Work} \label{sec:eval-comparison-related-work}
+
+The related works we considered to compare to our results were SoftHSM (\ref{subsec:softhsm}), pmHSM (\ref{subsec:pmhsm}), and hardware-backed VirtualHSM (\ref{subsec:rosahsm}). However, only the SoftHSM was possible to be executed in the same environment in which we ran our tests. Although the pmHSM mentioned in their paper a GitHub repository with the source code, at the time of the development of this Master thesis, it was no longer available. Regarding the VirtualHSM, we were able to obtain the source code, but our testing environment does not provide the trusted execution technology required, which is Intel SGX, the hardware piece that this work depends on. As previously stated, none of these works implements a fully distributed solution using threshold cryptography nor implements the same algorithms; nonetheless, since VirtualHSM compares their results to SoftHSM, we decided to mention their experiments so we can have some reference of the results of these works.
+
+Our distributed key generation feature implements the elliptic curves compatible with Schnorr and BLS signature schemes, namely, \texttt{secp256k1} and \texttt{BLS12\_381}. The former, according to NIST and other sources, provides 128-bit security \cite{nistp256security,cryptobook}, and the latter, although also close to 128, some works indicate that it provides 120 \cite{nccblssecurity} and others 126-bit security, as it is the case of IEFT \cite{blsdraft}. This standard measures the strength of an encryption or signature scheme. It indicates how difficult it is for an attacker to break the system's security using currently known attack methods and technology. The higher the bits of security, the stronger the system is against attacks. In this case, it means that an attacker would need to perform $2^{128}$ operations on average to break the encryption or forge a signature, assuming that they use the best-known attack methods. Considering that the related work does not implement our algorithms, we tried to compare those with the same bit security level. An algorithm that was implemented by all the works was RSA. Due to the mathematical nature of the algorithms, RSA key lengths must be significantly longer to provide security equivalent to ours. To provide 128-bit security, we need to use a 3072-bit RSA key \cite{nistrsasecurity}.
+
+
+\setlength{\tabcolsep}{10pt}
+\renewcommand{\arraystretch}{1.4}
+\begin{table}[h]
+\caption{Related work performance evaluation results for the most relevant key sizes, in operations per second (Op/s).}
+\label{tab:related-work-results}
+\centering
+\begin{tabular}{|ccc|}
+\hline
+\multicolumn{1}{|c|}{\textit{Key Size}} & \multicolumn{1}{c|}{SoftHSM} & \multicolumn{1}{c|}{VirtualHSM} \\ \hline
+\multicolumn{3}{|c|}{\textit{Key Generation (RSA)}} \\ \hline
+\multicolumn{1}{|c|}{1024-bit} &  \multicolumn{1}{c|}{5.63} & \multicolumn{1}{c|}{77.57} \\ \hline
+\multicolumn{1}{|c|}{2048-bit} &  \multicolumn{1}{c|}{4.36} & \multicolumn{1}{c|}{16.06} \\ \hline
+\multicolumn{1}{|c|}{3072-bit} &  \multicolumn{1}{c|}{3.44} & \multicolumn{1}{c|}{5.51} \\ \hline
+\multicolumn{3}{|c|}{\textit{Signature (RSA)}} \\ \hline
+\multicolumn{1}{|c|}{1024-bit} & \multicolumn{1}{c|}{4.46} & \multicolumn{1}{c|}{4435.77} \\ \cline{1-3}
+\multicolumn{1}{|c|}{2048-bit} & \multicolumn{1}{c|}{1.50} & \multicolumn{1}{c|}{1559.0} \\ \hline
+\end{tabular}
+\end{table}
+
+Table \ref{tab:related-work-results} presents the results of the related work for the most relevant operations and key sizes. The performance of the key generation algorithm of a 3072-bit RSA key is approximately 5.51 and 3.44 op/s in the VirtualHSM and SoftHSM, respectively. Using the (four replicas, one tolerated fault) setting, our system achieves better values for both Schnorr and BLS key generations, 48.76 and 7.69 op/s respectively, which are obtained in a fully distributed manner, unlike the works mentioned, which use centralized implementations.
+
+Since the related work only uses the 1024-bit or 2048-bit RSA key to compare their RSA signature scheme, we will refer to those values to compare them. Starting with the 1024-bit key and using 1KB of data, the VirtualHSM obtained 4435.77 op/s and the SoftHSM 4.46 op/s. The same data size but with the 2048-bit RSA key obtained 1559 and 1.50 op/s, respectively. 
+Regarding the pmHSM project, the authors state in the paper \cite{pmhsm} that their threshold RSA signatures implementation resulted in a decrease of around 15 times the performance obtained when running the centralized version in SoftHSM. Another difference is that, unlike ours, which uses a hash of the data, the performance of the algorithms used in these works reduces as the data size increases. 
+
+Although our signatures use a higher security level and were tested in a different environment, we achieved better results with threshold Schnorr and BLS signatures, except for VirtualHSM. Unfortunately, the authors did not present results for the 3072-bit key signature; however, the results from a 1024-bit to a 2048-bit key signature dropped from 4435 to 1559 op/s, a decrease of, approximately, 65\%, and by using a bigger key, assuming their values would drop at least the same percentage, their results would be closer to ours, even though their system is centralized and uses a TEE, which makes it easier to accomplish better performances.
+
+In order to get an idea of the difference in the performance of the signatures between our implementation and a non-threshold version, we implemented and compared them in the same test environment. In these experiments, generating a standard Schnorr signature took an average of 11.45ms, about half the time required for its threshold version, while a BLS signature took 2.33ms, which is significantly faster than its threshold variant. However, as expected, signature validation took roughly the same time in both schemes since the process is identical for both threshold and non-threshold versions.
+
+\section{Final Remarks} \label{sec:eval-final-remarks}
+
+Although threshold cryptography introduces considerable overhead in the signature process, these results must be weighed against the security advantages. Non-threshold signatures (and encryptions) expose cryptographic key material, making them vulnerable to theft by attackers. The alternative is to use trusted hardware like Intel SGX or conventional HSMs and hardware crypto wallets, which require trusting the hardware manufacturers and could result in greater financial costs. Moreover, threshold cryptography enhances availability, as the loss of cryptographic keys can be catastrophic for individuals and organizations. Replicating keys across multiple servers increases the attack surface or creates the challenge of securing the key copies.
+
+Compared to our approach, a centralized solution that still uses some dedicated hardware to perform its cryptographic operations should always have the advantage in terms of performance against a system like ours that uses threshold cryptography and is only software-based.
+
+%For instance, comparing our threshold encryption scheme with a standard centralized scheme, such as AES, might not be very meaningful since AES will, most of the time, achieve better results until reaching a specific limit of the data size, due to our implementation requiring, basically, an XOR operation performed by the client that aggregates received partial results into the final ciphertext, which will not be compatible with AES. 
+
+From the results obtained, we can observe that our prototype achieves adequate performance compared to the related work, even though no protocols were implemented for a fully distributed system using threshold algorithms to achieve the same functionalities of a dedicated physical HSM. Additionally, in terms of scalability, our system presents promising results, especially for Schnorr-based operations, although more experiments are needed for larger replica groups.
+
+
+
+\LIMPA

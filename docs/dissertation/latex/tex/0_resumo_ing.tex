@@ -1,0 +1,29 @@
+% ----------------------------------------------------------------------
+% Página do resumo em Inglês:
+\selectlanguage{english}
+\vspace*{2cm}
+\begin{center}
+\Large \bf Abstract
+\end{center}
+\vspace*{1cm} \setlength{\baselineskip}{0.6cm}
+
+Hardware Security Modules (HSMs) play a crucial role in enterprise environments by safeguarding sensitive cryptographic keys and performing essential cryptographic operations. However, these devices are expensive and difficult to manage, making them inaccessible to startups and small organizations. This work presents the development of a Virtual and Distributed HSM that can be practically deployed in real-world environments while providing robust security guarantees comparable to those of physical HSMs.
+
+Our approach leverages efficient protocols from the field of threshold cryptography, specifically distributed key generation, threshold signatures, and threshold symmetric encryption, which are the key operations performed by HSMs. By distributing trust among multiple parties and ensuring that no single entity has full control over cryptographic keys, our solution enhances security and resilience against breaches for a fraction of the cost of real HSMs. These protocols are implemented in a Byzantine Fault-Tolerant State Machine Replication system, making it tolerate asynchrony, faults, and intrusions. None of these techniques were implemented by previous works that addressed the same problem.
+
+Additionally, our system can support cryptocurrency wallets for securely managing cryptocurrencies, such as Bitcoin and Ethereum. This demonstrates the flexibility and applicability of our solution, namely in the growing field of digital finance, providing a secure alternative to manage digital assets.
+
+Experimental results reveal promising performance with low latency and acceptable scalability as server numbers increase, especially for Schnorr-based operations.
+
+%Resumo até \textbf{300} palavras. 
+
+\vfill
+
+\begin{flushleft}
+\textbf{Keywords:} Hardware Security Modules, Cryptocurrency Wallets, Distributed Key Generation, Threshold Signatures, Threshold Symmetric Encryption.
+\end{flushleft}
+
+\LIMPA
+\selectlanguage{english}
+% Fim da página do resumo em Inglês.
+% ----------------------------------------------------------------------

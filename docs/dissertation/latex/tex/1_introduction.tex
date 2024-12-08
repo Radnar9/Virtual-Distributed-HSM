@@ -1,0 +1,60 @@
+\chapter{Introduction} \label{chap:introduction}
+
+As the business landscape continually evolves, the imperative to address cybersecurity risks becomes critical for organizations of all sizes. Despite substantial investments by large enterprises, smaller businesses often lack awareness of these threats or have not made protecting their information systems a top priority, leaving them vulnerable. The 2022 IBM Security report \cite{ibmsec2022} reveals the consequence of these practices, a global average cost of data breaches reaching an all-time high of \$4.35 million in 2022 (compared with \$4.24 million in 2021). Even though 83\% of the companies in the study had experienced more than one breach during their existence, more than half of the costs incurred were reported to have occurred more than a year after the breach, underscoring the critical need for bringing awareness for effective cybersecurity measures, instead of neglecting the subject.
+
+Traditional security approaches involve using Hardware Security Modules (HSMs), physical devices that process cryptographic operations and safeguard cryptographic keys. By hiding and protecting cryptographic materials, this highly trusted hardware component is often the security pillar in organizations, acting as the \textit{Root of Trust} \cite{hsmrootoftrust}, since it can be relied upon at all times due to having not only internationally recognized certifications that vouch for their security guarantees, but also due to its strict security measures such as, among others, being tamper-resistant, tamper-evident and having a strictly controlled access, depending of the security level \cite{fipslevels}. Furthermore, HSMs are frequently maintained off the company's computer network to further guard against security breaches \cite{hsmdefinition}. An attacker would, therefore, need physical access to the HSM to even look at the encrypted data. 
+
+\section{Motivation}
+
+Although effective, in addition to being difficult to manage, to secure at a large scale, or even to deploy, an HSM infrastructure is costly and often impractical for smaller companies. A 2018 article from Fortanix \cite{hsmeconomics}, a company focused on selling security solutions to enterprises, states that this type of hardware would typically cost at least \$20,000 to deploy, \$40,000 to achieve high availability, and multiple times more for a typical enterprise deployment. To adapt the hardware to the company's needs would require additional components and increasing costs. These needs could include basic utilities, such as support for elliptic curve algorithms, master key export, remote administration, and maintenance. In the end, deployment costs for real-world use cases could start at around \$250,000, which for startups and recent companies is a cost that many are not willing to pay at the beginning, a scenario that potentially contributes to numerous data breaches.
+
+As a result, there have been some attempts to virtualize HSMs because of the lower prices when comparing hosting a distributed software service versus a service that needs to replicate their system through a set of physical and expensive Hardware Security Modules to secure the availability of the infrastructure. Some of these solutions use only software \cite{softhsm,pmhsm}, while others use a mixture of software and hardware \cite{rosahsmthesis}. However, all are lacking in some aspect of their security features, either in terms of availability, integrity, confidentiality, or tolerance to faults and intrusions.
+
+When developing a virtual HSM solution, the focus should be on achieving the security levels present in the physical devices and not so much on hitting the performance they can reach. These highly dedicated hardware devices are specifically designed for their purpose, are extremely efficient and performant in their operations, and achieve values that will never be comparable to those obtained on virtual solutions. Virtual HSMs are often implemented in a distributed manner and, consequently, communication latency will always be a limiting factor in terms of performance.
+
+To the best of our knowledge, there is not yet a virtual HSM solution that offers a security level similar to that found in most physical HSMs, nor is there a solution that aggregates all the referred properties lacking in previous works. Strong security guarantees that make any system robust and difficult for an adversary to compromise.
+
+
+\section{Goals}
+
+In this dissertation, our objective is to develop a secure, efficient, and resilient virtual and distributed HSM solution that can achieve a security level similar to that found in regularly used physical HSMs by implementing it only using software. Our system also aims to be adaptable to other contexts, particularly cryptocurrency wallets, where certain HSM functionalities are a perfect fit for the needs of these wallets. These goals can be broken down into three specific objectives:
+\begin{enumerate}
+    \item Conduct a research on existing virtual HSM solutions, secure cryptocurrency wallets implementations, and study state-of-the-art efficient protocols from the field of threshold cryptography, specifically for the operations of distributed key generation \cite{dkgwild,cobra}, threshold signatures \cite{gennaro18,frost3,blsdraft}, and threshold symmetric encryption \cite{dise}, since these are the distributed versions of the most important functionalities of an HSM, in addition to safeguarding cryptographic keys;
+    \item Develop and implement a decentralized virtual HSM solution using a Byzantine Fault-Tolerant State Machine Replication system to make it realistic and practical, with the threshold cryptography protocols gathered from the initial research to perform the main functionalities of an HSM;
+    \item Evaluate the developed work in terms of performance by making a latency test for each of the developed functionalities and then compare the obtained results with those achieved in similar projects.
+\end{enumerate}
+
+
+\section{Contributions}
+
+Our main contribution consists of a Virtual and Distributed HSM, fully implemented in software, without any dependency on Trusted Execution Environments, such as IntelSGX \cite{intelsgx}. We propose a system that successfully tackles the security holes left by previous similar works by employing a fully distributed solution of a virtual HSM, using state-of-the-art protocols and systems to achieve a level of security comparable to what is found in a physical HSM. Compared with existing similar solutions, our project brings the following innovations:
+\begin{itemize}
+    \item Aggregates the properties of availability, integrity, and confidentiality all in one system, mainly due to the threshold protocols and the system employed underneath, which allows our system to be tolerant to asynchrony, Byzantine faults, and intrusions;
+    \item Implements the functionalities of key generation, signatures, and encryption using recent, efficient, and secure algorithms from the field of threshold cryptography, stacking them all in the same system;
+    \item Uses a Byzantine Fault-Tolerant State Machine Replication (BFT SMR) system, a state-of-the-art approach to allow a distributed system to be realistic and practical in the real world;
+    \item Applicability of our system for more than a single purpose. Besides acting as an HSM, our system can also be used in other contexts, particularly, it can be used as a cryptocurrency wallet, since it implements the most fundamental features expected in these wallets.
+\end{itemize}
+
+\section{Use Cases}
+
+The idea behind the development of this system can be used for several different purposes and can be acquired in different ways. Below, we highlight the use cases that best suit the objectives initially outlined:  
+
+\begin{itemize}
+    \item \textbf{Startups}: Our system enables smaller businesses and startups to develop early-stage security strategies by employing a cheaper and more practical infrastructure without compromising on security;
+    \item \textbf{Software-as-a-Service (SaaS)}: Since our solution is ready to use and easily adaptable to the client's needs and environment, requiring less effort to put it into practice, the software could be sold to enterprises as a SaaS. In this way, since the company would subscribe to this kind of service, they would not need to have their servers running all the infrastructure; therefore, all the management details and issues would not be their concern, making the adaptation process easier. In addition, this cloud-based approach could also help our solution reach regular users;
+    \item \textbf{Cryptocurrency Wallet}: Our system, besides acting as an HSM, can also be used as a cryptocurrency wallet since it supports the most important features provided by this type of service, namely, key generation, which is done when creating an account; safe storage of the private key, by distributing its shares among the available servers; and also signing of transactions, since it implements blockchain compatible algorithms, particularly, Bitcoin and Ethereum. The system's configuration can be extended to support other blockchains.
+\end{itemize}
+
+\section{Publication}
+The work developed in this Master thesis dissertation was published \cite{inforumpublication} and presented at the Portuguese conference INForum 2024, under the "Security of Computer and Communications Systems" track.
+
+\section{Document Structure}
+This document is divided into seven chapters, each organized as follows (excepting the introduction chapter):
+\begin{itemize}
+	\item Chapter \ref{chap:background} gives the necessary information and background knowledge related to the concepts this dissertation focuses on. The chapter starts by explaining what hardware security modules consist of, followed by describing the concepts, protocols, and frameworks that compose our project, including Byzantine Fault-Tolerant State Machine Replication systems, COBRA \cite{cobra}, and threshold cryptography protocols for distributing and generating keys, issuing signatures, and perform encryptions/decryptions; 
+	\item Chapter \ref{chap:related-work} discusses the related work regarding the development of similar virtual HSMs solutions, and then presents cryptocurrency wallets, describing their responsibilities and their relationship to HSMs and our work;
+	\item Chapter \ref{chap:system-design} covers the design of our Virtual and Distributed HSM, presenting the concepts to secure the system, the system and adversary model, and its architecture, clarifying the responsibilities of each of the main components and how users should use the system, revealing the available functionalities through the API;
+	\item Chapter \ref{chap:implementation} addresses the implementation details of the project. The chapter focuses on the challenges and the solutions faced when implementing each of the main functionalities of the system, analyzing the most important implementation aspects; 
+	\item Chapter \ref{chap:evaluation} displays the experimental evaluation of the implemented features, evaluating the system in terms of performance. After presenting the results, the chapter concludes with a comparison of the obtained results with those from related work, highlighting the conclusions drawn from both;  % in terms of performance and throughput
+	\item Chapter \ref{chap:conclusion} presents the dissertation's conclusions, along with future work that can still be done to improve the project.
+\end{itemize}

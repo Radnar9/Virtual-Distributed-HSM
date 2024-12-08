@@ -1,0 +1,15 @@
+\chapter{Conclusion} \label{chap:conclusion}
+
+This dissertation presents a Virtual and Distributed HSM that aggregates several efficient protocols from the field of threshold cryptography to accomplish its main functionalities, namely, distributed key generation, threshold signatures, and threshold symmetric encryption. This strategy, jointly with a BFT SMR system provided by COBRA and BFT-SMaRt, allowed us to achieve a practical fault-tolerant system with similar security guarantees to a physical HSM; however, accomplishing it in a distributed, practical, and cheaper way. Although it is hard to achieve the same performance as a dedicated physical device, not only because the hardware being designed for that purpose, but also due to the communication latency intrinsic to a distributed system, our system shows promising results in terms of security, confidentiality, and performance, for a fraction of the financial cost of a physical HSM, being also prepared to be used in the cryptocurrency context to perform the required functionalities.
+
+To the best of our knowledge, this is the first work in which all these functionalities were accomplished using threshold cryptography protocols in a realistic, practical, and fully distributed system. Our project was developed using mainly the Kotlin and Java languages, and its source code is available on GitHub \cite{thresholdhsmgithub}. This repository specifies all the required instructions for running and testing our system.
+
+
+\section{Future Work} \label{sec: future-work}
+
+As future work, we plan to continue improving the security, performance, and functionalities of our HSM. Particularly, improve the changes made to COBRA to support multiple clients changing to different elliptic curves concurrently. And then, extend the experimental evaluation to conclude about the maximum throughput, that is, the maximum number of clients the system can handle concurrently and keep performing the requested operations as expected. 
+
+We also intend to implement the Crypto-Wallet API and the PKCS\#11 API, the former custom-made that in the end would be similar to what we already have in the Client API, and the latter corresponding to a widely known and used specification that would allow a more straightforward and almost effortless migration from another HSM (physical or not) to ours, or the opposite, as long as both use the same API. This complex API would allow the final users to interact with all the functionalities existent in an HSM, while the one focused on cryptocurrency wallets would only make available specific features that these wallets typically use and require.
+
+To demonstrate how our system would behave in the real world, we want to implement a small application for both APIs, one that interacts with the PKCS\#11 specification, to show the possible interoperability between devices that use this same API, and another that implements an actual wallet that interacts with blockchains and can perform the most important functionalities, including creating an account, checking the current balance, executing transactions, and observing prior transactions. 
+
